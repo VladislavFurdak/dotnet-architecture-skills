@@ -180,7 +180,7 @@ lifetime.ApplicationStopped.Register(() =>
 
 app.Run();
 
-public sealed class PostgresOptions
+public class PostgresOptions
 {
     public const string SectionName = "Postgres";
 
@@ -188,7 +188,7 @@ public sealed class PostgresOptions
     public string ConnectionString { get; init; } = string.Empty;
 }
 
-public sealed class ObservabilityOptions
+public class ObservabilityOptions
 {
     public const string SectionName = "Observability";
 
@@ -196,7 +196,7 @@ public sealed class ObservabilityOptions
     public string? OtlpEndpoint { get; init; }
 }
 
-public sealed class UtcShipmentNumberGenerator : IShipmentNumberGenerator
+public class UtcShipmentNumberGenerator : IShipmentNumberGenerator
 {
     public string Next() => $"SHP-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
 }
@@ -211,7 +211,7 @@ using Npgsql;
 
 namespace Shipments.Api.Infrastructure.Persistence;
 
-public sealed class NpgsqlConnectionFactory(IOptions<PostgresOptions> options) : IDbConnectionFactory
+public class NpgsqlConnectionFactory(IOptions<PostgresOptions> options) : IDbConnectionFactory
 {
     public async Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
@@ -230,7 +230,7 @@ using Shipments.Api.Domain.Shipments;
 
 namespace Shipments.Api.Infrastructure.Persistence;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<Shipment> Shipments => Set<Shipment>();
 

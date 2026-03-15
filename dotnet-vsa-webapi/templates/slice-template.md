@@ -55,7 +55,7 @@ Only add `Shared/` when the logic is reused by related slices for the same reaso
 ```csharp
 namespace <RootNamespace>.Features.<FeatureName>.<UseCaseName>;
 
-public sealed record <RequestName>(
+public record <RequestName>(
     /* immutable request fields */
 );
 ```
@@ -74,7 +74,7 @@ using FluentValidation;
 
 namespace <RootNamespace>.Features.<FeatureName>.<UseCaseName>;
 
-public sealed class <RequestName>Validator : AbstractValidator<<RequestName>>
+public class <RequestName>Validator : AbstractValidator<<RequestName>>
 {
     public <RequestName>Validator()
     {
@@ -95,7 +95,7 @@ Rules:
 ```csharp
 namespace <RootNamespace>.Features.<FeatureName>.<UseCaseName>;
 
-public sealed record <ResponseName>(
+public record <ResponseName>(
     /* projection fields only */
 );
 ```
@@ -131,7 +131,7 @@ public interface I<UseCaseName>Handler
 ### EF Core command pattern
 
 ```csharp
-public sealed class <UseCaseName>Handler(
+public class <UseCaseName>Handler(
     AppDbContext dbContext,
     /* meaningful collaborators only */,
     ILogger<<UseCaseName>Handler> logger)
@@ -154,7 +154,7 @@ public sealed class <UseCaseName>Handler(
 ### Dapper query pattern
 
 ```csharp
-public sealed class <UseCaseName>Handler(
+public class <UseCaseName>Handler(
     IDbConnectionFactory connectionFactory)
     : I<UseCaseName>Handler
 {

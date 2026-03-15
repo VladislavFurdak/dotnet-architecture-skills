@@ -28,6 +28,11 @@ Inside a slice, preserve Clean Architecture ideas:
 - dependencies point toward stable abstractions
 But **organize the codebase by feature, not by technical layers**.
 
+## C# style defaults
+
+- **Do not add `sealed`** to classes or records by default. Use plain `public class` / `public record`.
+- **Prefer primary constructors** for DI, handlers, services, and infrastructure adapters. Use traditional constructors only when complex initialization or validation is needed.
+
 ## Never introduce by default
 
 - MediatR
@@ -101,6 +106,9 @@ Load only what the task needs:
 
 - For endpoint behavior, validation, status codes, ProblemDetails, and Result mapping:
   - [references/http-and-result-mapping.md](references/http-and-result-mapping.md)
+
+- For collection API design: filtering, sorting, field selection, and pagination approaches:
+  - [references/api-design-patterns.md](references/api-design-patterns.md)
 
 - For EF Core vs Dapper, repositories, DbContext use, and SQL placement:
   - [references/data-access-guidance.md](references/data-access-guidance.md)

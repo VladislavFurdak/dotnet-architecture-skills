@@ -18,7 +18,7 @@ public enum ErrorType
     Failure
 }
 
-public sealed record Error(
+public record Error(
     ErrorType Type,
     string Code,
     string Message,
@@ -80,7 +80,7 @@ public class Result
         new(default, false, error);
 }
 
-public sealed class Result<T> : Result
+public class Result<T> : Result
 {
     internal Result(T? value, bool isSuccess, Error error)
         : base(isSuccess, error)

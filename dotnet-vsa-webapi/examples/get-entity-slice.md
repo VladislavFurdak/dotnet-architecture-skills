@@ -43,7 +43,7 @@ public interface IDbConnectionFactory
 ```csharp
 namespace Shipments.Api.Features.Shipments.GetShipmentById;
 
-public sealed record GetShipmentByIdQuery(Guid Id);
+public record GetShipmentByIdQuery(Guid Id);
 ```
 
 ## `Features/Shipments/GetShipmentById/Response.cs`
@@ -51,7 +51,7 @@ public sealed record GetShipmentByIdQuery(Guid Id);
 ```csharp
 namespace Shipments.Api.Features.Shipments.GetShipmentById;
 
-public sealed record ShipmentDetailsResponse(
+public record ShipmentDetailsResponse(
     Guid Id,
     string Number,
     string OrderId,
@@ -76,7 +76,7 @@ public interface IGetShipmentByIdHandler
         CancellationToken cancellationToken);
 }
 
-public sealed class GetShipmentByIdHandler(
+public class GetShipmentByIdHandler(
     IDbConnectionFactory connectionFactory)
     : IGetShipmentByIdHandler
 {

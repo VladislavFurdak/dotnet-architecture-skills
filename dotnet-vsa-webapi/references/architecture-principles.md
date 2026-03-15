@@ -274,6 +274,59 @@ Extract only when:
 
 Do not extract because two code blocks merely “look similar”.
 
+## C# style defaults
+
+### Do not add `sealed` by default
+
+Do not mark classes or records as `sealed` unless there is a specific reason (e.g., security-sensitive class, performance-critical hot path where devirtualization matters).
+The default is simply `public class` / `public record`.
+
+### Prefer primary constructors
+
+Use primary constructors for dependency injection, handlers, services, and simple data classes.
+They reduce boilerplate and keep the class declaration concise.
+
+Good:
+```csharp
+public class CreateShipmentHandler(
+    AppDbContext dbContext,
+    IShipmentNumberGenerator numberGenerator,
+    TimeProvider timeProvider,
+    ILogger<CreateShipmentHandler> logger)
+    : ICreateShipmentHandler
+{
+    // use dbContext, numberGenerator, etc. directly
+}
+```
+
+Avoid:
+```csharp
+public class CreateShipmentHandler : ICreateShipmentHandler
+{
+    private readonly AppDbContext _dbContext;
+    private readonly IShipmentNumberGenerator _numberGenerator;
+
+    public CreateShipmentHandler(
+        AppDbContext dbContext,
+        IShipmentNumberGenerator numberGenerator)
+    {
+        _dbContext = dbContext;
+        _numberGenerator = numberGenerator;
+    }
+}
+```
+
+Primary constructors work for:
+- handlers and services (DI injection)
+- DbContext subclasses: `public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)`
+- infrastructure adapters: `public class NpgsqlConnectionFactory(IOptions<PostgresOptions> options) : IDbConnectionFactory`
+- simple value types and DTOs when records don't fit
+
+Use traditional constructors only when:
+- the constructor has complex initialization logic
+- you need to validate/transform parameters before assignment
+- the class is a domain entity with factory methods and a private constructor
+
 ## Naming rules
 
 Names must scream the domain and use case.

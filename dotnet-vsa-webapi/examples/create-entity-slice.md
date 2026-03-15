@@ -37,7 +37,7 @@ Infrastructure/
 ```csharp
 namespace Shipments.Api.Domain.Shipments;
 
-public sealed class Shipment
+public class Shipment
 {
     private Shipment()
     {
@@ -97,7 +97,7 @@ public static class ShipmentErrors
 ```csharp
 namespace Shipments.Api.Features.Shipments.CreateShipment;
 
-public sealed record CreateShipmentRequest(
+public record CreateShipmentRequest(
     string OrderId,
     string RecipientEmail,
     string DestinationCountryCode);
@@ -108,7 +108,7 @@ public sealed record CreateShipmentRequest(
 ```csharp
 namespace Shipments.Api.Features.Shipments.CreateShipment;
 
-public sealed record CreateShipmentResponse(
+public record CreateShipmentResponse(
     Guid Id,
     string Number,
     DateTimeOffset CreatedAtUtc);
@@ -121,7 +121,7 @@ using FluentValidation;
 
 namespace Shipments.Api.Features.Shipments.CreateShipment;
 
-public sealed class CreateShipmentRequestValidator : AbstractValidator<CreateShipmentRequest>
+public class CreateShipmentRequestValidator : AbstractValidator<CreateShipmentRequest>
 {
     public CreateShipmentRequestValidator()
     {
@@ -163,7 +163,7 @@ public interface IShipmentNumberGenerator
     string Next();
 }
 
-public sealed class CreateShipmentHandler(
+public class CreateShipmentHandler(
     AppDbContext dbContext,
     IShipmentNumberGenerator numberGenerator,
     TimeProvider timeProvider,

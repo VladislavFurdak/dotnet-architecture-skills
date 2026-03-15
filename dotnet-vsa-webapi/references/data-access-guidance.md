@@ -63,12 +63,12 @@ For EF Core, do not force a generic repository by default.
 
 Good:
 ```csharp
-public sealed class CreateShipmentHandler(ShipmentsDbContext dbContext, ...)
+public class CreateShipmentHandler(ShipmentsDbContext dbContext, ...)
 ```
 
 Questionable:
 ```csharp
-public sealed class CreateShipmentHandler(IRepository<Shipment> repository, ...)
+public class CreateShipmentHandler(IRepository<Shipment> repository, ...)
 ```
 
 unless the repository represents a real aggregate boundary and adds value.
