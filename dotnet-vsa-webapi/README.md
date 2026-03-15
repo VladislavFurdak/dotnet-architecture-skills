@@ -166,12 +166,6 @@ For generated SDKs:
 - SDK generation consumes the OpenAPI document; it is not a reason to contort runtime architecture
 - do not mix “app runtime choices” with “client codegen choices”
 
-## Credits
-
-Skill by Vladyslav Furdak.
-
-This skill pack synthesizes ideas from multiple sources, including ACROSS principles by Vladyslav Furdak.
-
 ## If you extend this skill
 
 Good additions include:
