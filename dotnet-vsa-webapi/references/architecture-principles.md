@@ -24,13 +24,39 @@ That usually means colocating:
 - local query object / SQL
 - tests for that slice
 
+## Solution structure
+
+Use a `.slnx` file at the repository root with projects organized into physical folders.
+
+```text
+repo-root/
+├── Solution.slnx
+├── Directory.Build.props
+├── Directory.Packages.props
+├── src/
+│   ├── Aspire/
+│   │   ├── AppHost/
+│   │   └── ServiceDefaults/
+│   └── Shipments.Api/
+└── tests/
+    └── Shipments.Api.Tests/
+```
+
+Rules:
+- `.slnx` at the root — one solution file per repository
+- `src/Aspire/` holds AppHost and ServiceDefaults
+- each service gets its own folder under `src/`
+- `Directory.Build.props` for shared compiler settings
+- `Directory.Packages.props` for Central Package Management
+- see [examples/solution-structure.md](../examples/solution-structure.md) for full `.slnx` examples
+
 ## Core structure
 
 Prefer this shape for a single application:
 
 ```text
 src/
-  Web/
+  Shipments.Api/
     Program.cs
     Features/
       Shipments/

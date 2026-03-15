@@ -300,6 +300,30 @@ Unexpected failures:
 
 Do not leak internal exception details in production responses.
 
+## .NET Aspire for local development
+
+Use Aspire AppHost to start infrastructure dependencies (PostgreSQL, Redis, RabbitMQ, etc.) as containers automatically on `dotnet run`.
+
+### Benefits
+
+- **zero-config database**: new developers need only Docker installed — no local PostgreSQL, no manual connection strings
+- **Aspire dashboard**: built-in traces, logs, and metrics UI at `https://localhost:15xxx`
+- **PgAdmin**: add `.WithPgAdmin()` to get a browser-based database UI
+- **Persistent containers**: `.WithLifetime(ContainerLifetime.Persistent)` keeps containers alive across restarts
+- **Automatic connection string injection**: resource names (e.g., `"shipments-db"`) become `ConnectionStrings` keys
+
+### Production without Aspire orchestration
+
+Aspire components (`Aspire.Npgsql.EntityFrameworkCore.PostgreSQL`, etc.) work without the AppHost. They fall back to standard `ConnectionStrings` configuration from `appsettings.json` or environment variables. No code changes needed between dev and prod — only the configuration source changes.
+
+### When to skip Aspire
+
+- the team already uses `docker-compose.yml` and switching has no benefit
+- the project targets .NET 8 without Aspire packages available
+- the deployment story is fully Kubernetes-native with Helm/Kustomize for local dev
+
+See [examples/aspire-apphost.md](../examples/aspire-apphost.md) for full AppHost, ServiceDefaults, and API integration examples.
+
 ## Local development defaults
 
 In Development mode, redirect the root URL (`/`) to Scalar so that opening the app in a browser immediately shows the API reference with all endpoints:
@@ -316,12 +340,13 @@ if (app.Environment.IsDevelopment())
 
 ## Minimal production bootstrap checklist
 
+- Aspire ServiceDefaults wired (`builder.AddServiceDefaults()` + `app.MapDefaultEndpoints()`)
+- Aspire Npgsql component registered (`builder.AddNpgsqlDbContext<AppDbContext>("shipments-db")`)
+- Connection string configured via `ConnectionStrings:shipments-db` in appsettings or environment variable
 - Serilog configured
-- optional OTel configured only when needed
 - OpenAPI + Scalar configured
-- health checks mapped
+- health checks mapped (liveness from ServiceDefaults, readiness via DbContext check)
 - HTTPS redirection considered for deployment model
-- options validated on startup
 - structured exception handling in place
 - Dockerfile present
 - K8s probes documented

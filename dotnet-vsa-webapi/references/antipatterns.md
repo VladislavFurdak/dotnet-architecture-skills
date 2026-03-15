@@ -359,6 +359,64 @@ Refactor target:
 - use `CancellationToken.None` for write calls in multi-step flows without a transaction
 - wrap multi-step writes in a transaction if cancellation support is needed
 
+## EF Core performance anti-patterns
+
+## 28. Monolithic Where predicate with external variable checks
+
+Symptoms:
+- single `.Where()` with `||` / `&&` mixing C# variable checks and entity predicates
+- `!string.IsNullOrWhiteSpace(x) && c.Field.Contains(x)` inside the expression tree
+
+Why it hurts:
+- EF Core generates bloated SQL with always-false branches
+- unreadable and fragile LINQ
+- poor SQL query plans
+
+Refactor target:
+- evaluate filter presence outside the expression tree
+- chain `.Where()` for AND, `.Union()` for OR
+- see `references/data-access-guidance.md` for full examples
+
+## 29. Loading full entities for read-only endpoints
+
+Symptoms:
+- `.ToListAsync()` on entity set, then mapping to DTOs in C#
+- no `.Select()` projection, no `.AsNoTracking()`
+
+Why it hurts:
+- fetches all columns including large ones
+- change tracker allocates per-entity overhead
+
+Refactor target:
+- `.Select(x => new ResponseDto(...))` directly in the query
+- `.AsNoTracking()` when projection is not possible
+
+## 30. N+1 queries via lazy loading or loop fetching
+
+Symptoms:
+- related entities loaded inside a `foreach` loop
+- lazy loading proxies enabled
+
+Why it hurts:
+- one query per iteration
+- hard to spot without query logging
+
+Refactor target:
+- `.Include()` for eager loading
+- `.AsSplitQuery()` when multiple collection navigations
+
+## 31. Loading entities solely for delete or update
+
+Symptoms:
+- `FindAsync` + `Remove` for bulk deletes
+- loading entities to set a property, then `SaveChangesAsync`
+
+Why it hurts:
+- unnecessary round-trip per entity
+
+Refactor target:
+- `ExecuteDeleteAsync()` / `ExecuteUpdateAsync()` (EF Core 7+)
+
 ## Change management anti-patterns
 
 ## 24. Big-bang rewrite

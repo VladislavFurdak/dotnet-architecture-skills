@@ -19,31 +19,25 @@ It includes:
 Typical packages for this baseline:
 
 ```text
+Aspire.Npgsql.EntityFrameworkCore.PostgreSQL
 Microsoft.AspNetCore.OpenApi
 Scalar.AspNetCore
 FluentValidation
 FluentValidation.DependencyInjectionExtensions
-Microsoft.EntityFrameworkCore
-Npgsql.EntityFrameworkCore.PostgreSQL
-Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore
 Serilog.AspNetCore
 Serilog.Sinks.Console
-OpenTelemetry.Extensions.Hosting
-OpenTelemetry.Instrumentation.AspNetCore
-OpenTelemetry.Instrumentation.Http
-OpenTelemetry.Instrumentation.Runtime
-OpenTelemetry.Exporter.OpenTelemetryProtocol
 ```
+
+The `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` component replaces manual EF Core + Npgsql wiring. It automatically adds health checks, OpenTelemetry tracing, retry resilience, and connection string resolution via `ConnectionStrings` configuration or Aspire orchestration.
+
+OpenTelemetry packages are provided by the ServiceDefaults project and do not need to be referenced directly by the API project.
+
+> **Without Aspire**: if the project does not use Aspire, replace with `Microsoft.EntityFrameworkCore`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`, and the OpenTelemetry packages directly.
 
 ## `Program.cs`
 
 ```csharp
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
 using Serilog;
 using Shipments.Api.Features.Shipments.CreateShipment;
@@ -51,6 +45,9 @@ using Shipments.Api.Features.Shipments.GetShipmentById;
 using Shipments.Api.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Aspire ServiceDefaults: OpenTelemetry, health checks, resilience, service discovery
+builder.AddServiceDefaults();
 
 builder.Host.UseSerilog((context, services, logger) =>
 {
@@ -63,21 +60,9 @@ builder.Host.UseSerilog((context, services, logger) =>
 
 builder.Services.AddOpenApi();
 
-builder.Services.AddOptions<PostgresOptions>()
-    .Bind(builder.Configuration.GetSection(PostgresOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddOptions<ObservabilityOptions>()
-    .Bind(builder.Configuration.GetSection(ObservabilityOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-
-builder.Services.AddDbContext<AppDbContext>((services, options) =>
-{
-    var postgres = services.GetRequiredService<IOptions<PostgresOptions>>().Value;
-    options.UseNpgsql(postgres.ConnectionString);
-});
+// Aspire Npgsql component: resolves ConnectionStrings:shipments-db from
+// Aspire orchestration (local dev) or appsettings.json / env vars (production)
+builder.AddNpgsqlDbContext<AppDbContext>("shipments-db");
 
 builder.Services.AddValidatorsFromAssemblyContaining<CreateShipmentRequestValidator>();
 
@@ -87,41 +72,10 @@ builder.Services.AddSingleton<IShipmentNumberGenerator, UtcShipmentNumberGenerat
 builder.Services.AddScoped<IDbConnectionFactory, NpgsqlConnectionFactory>();
 builder.Services.AddSingleton(TimeProvider.System);
 
+// Readiness health check — Aspire Npgsql component auto-registers a PostgreSQL health check,
+// but we tag it for the /health/ready endpoint. The liveness check comes from ServiceDefaults.
 builder.Services.AddHealthChecks()
-    .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"])
     .AddDbContextCheck<AppDbContext>(tags: ["ready"]);
-
-var observability = builder.Configuration
-    .GetSection(ObservabilityOptions.SectionName)
-    .Get<ObservabilityOptions>();
-
-if (observability?.EnableOpenTelemetry is true)
-{
-    builder.Services.AddOpenTelemetry()
-        .ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))
-        .WithTracing(tracing =>
-        {
-            tracing
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation();
-
-            if (!string.IsNullOrWhiteSpace(observability.OtlpEndpoint))
-            {
-                tracing.AddOtlpExporter(options => options.Endpoint = new Uri(observability.OtlpEndpoint));
-            }
-        })
-        .WithMetrics(metrics =>
-        {
-            metrics
-                .AddAspNetCoreInstrumentation()
-                .AddRuntimeInstrumentation();
-
-            if (!string.IsNullOrWhiteSpace(observability.OtlpEndpoint))
-            {
-                metrics.AddOtlpExporter(options => options.Endpoint = new Uri(observability.OtlpEndpoint));
-            }
-        });
-}
 
 builder.Services.Configure<HostOptions>(options =>
 {
@@ -137,6 +91,9 @@ app.Map("/error", () => Results.Problem(
     title: "An unexpected error occurred.",
     statusCode: StatusCodes.Status500InternalServerError));
 
+// ServiceDefaults: maps /health/live and /health/ready endpoints
+app.MapDefaultEndpoints();
+
 app.MapOpenApi();
 app.MapScalarApiReference(options =>
 {
@@ -150,16 +107,6 @@ if (app.Environment.IsDevelopment())
     app.MapGet("/", () => Results.Redirect("/scalar/v1"))
         .ExcludeFromDescription();
 }
-
-app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = registration => registration.Tags.Contains("live")
-}).ShortCircuit();
-
-app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = registration => registration.Tags.Contains("ready")
-}).ShortCircuit();
 
 app.MapCreateShipment();
 app.MapGetShipmentById();
@@ -180,22 +127,6 @@ lifetime.ApplicationStopped.Register(() =>
 
 app.Run();
 
-public class PostgresOptions
-{
-    public const string SectionName = "Postgres";
-
-    [System.ComponentModel.DataAnnotations.Required]
-    public string ConnectionString { get; init; } = string.Empty;
-}
-
-public class ObservabilityOptions
-{
-    public const string SectionName = "Observability";
-
-    public bool EnableOpenTelemetry { get; init; }
-    public string? OtlpEndpoint { get; init; }
-}
-
 public class UtcShipmentNumberGenerator : IShipmentNumberGenerator
 {
     public string Next() => $"SHP-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
@@ -204,23 +135,25 @@ public class UtcShipmentNumberGenerator : IShipmentNumberGenerator
 
 ## `Infrastructure/Persistence/NpgsqlConnectionFactory.cs`
 
+Uses `NpgsqlDataSource` injected by the Aspire component — shares the same connection pool, health checks, and tracing as EF Core.
+
 ```csharp
 using System.Data;
-using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace Shipments.Api.Infrastructure.Persistence;
 
-public class NpgsqlConnectionFactory(IOptions<PostgresOptions> options) : IDbConnectionFactory
+public class NpgsqlConnectionFactory(NpgsqlDataSource dataSource) : IDbConnectionFactory
 {
     public async Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = new NpgsqlConnection(options.Value.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         return connection;
     }
 }
 ```
+
+> **Without Aspire**: if not using Aspire, inject `IOptions<PostgresOptions>` and create `new NpgsqlConnection(options.Value.ConnectionString)` manually.
 
 ## `Infrastructure/Persistence/AppDbContext.cs`
 
@@ -254,10 +187,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
 ## Why this bootstrap is the default
 
+- **Aspire ServiceDefaults** provides OpenTelemetry, health checks, resilience, and service discovery out of the box.
+- **Aspire Npgsql component** handles connection string resolution, health checks, tracing, and retry — no manual wiring.
 - Built-in OpenAPI + Scalar is the current default path.
 - Validation is explicit and Minimal-API friendly.
-- Options are strongly typed and validated on startup.
 - Serilog is the baseline logger.
-- OpenTelemetry is conditional, not forced.
-- Health checks are split into liveness and readiness.
+- Health checks are split into liveness (ServiceDefaults) and readiness (DbContext check).
 - Slice endpoints are registered explicitly, not by magic scanning.
+- **Production**: connection string comes from `ConnectionStrings:shipments-db` in `appsettings.json` or environment variable `ConnectionStrings__shipments-db`.
+- **Local dev**: Aspire AppHost injects connection strings automatically via orchestration.

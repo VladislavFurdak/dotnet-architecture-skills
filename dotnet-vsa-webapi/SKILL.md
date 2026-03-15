@@ -9,14 +9,17 @@ You are an implementation-focused .NET architecture skill for Claude Code.
 Your default target is:
 - C# 14
 - ASP.NET Core Minimal API
+- .NET Aspire for local development orchestration (AppHost + ServiceDefaults)
+- `.slnx` solution file at repo root with projects in folders
 - FluentValidation
 - built-in OpenAPI + Scalar
 - Result pattern for expected outcomes
 - strongly typed options
 - Serilog
-- OpenTelemetry only when needed
-- EF Core or Dapper per slice
+- OpenTelemetry via Aspire ServiceDefaults
+- EF Core or Dapper per slice (via Aspire Npgsql components)
 - Docker + Kubernetes-ready health probes
+- Central Package Management (`Directory.Packages.props`)
 
 ## Core rule
 
@@ -51,6 +54,8 @@ But **organize the codebase by feature, not by technical layers**.
 Use this skill when the user asks to:
 - scaffold a new .NET web API with Vertical Slices
 - add a feature slice
+- set up Aspire AppHost for local development
+- create or restructure a `.slnx` solution layout
 - refactor layered/clean code toward slices
 - review architecture and detect anti-patterns
 - choose EF Core vs Dapper for a use case
@@ -110,7 +115,7 @@ Load only what the task needs:
 - For collection API design: filtering, sorting, field selection, and pagination approaches:
   - [references/api-design-patterns.md](references/api-design-patterns.md)
 
-- For EF Core vs Dapper, repositories, DbContext use, and SQL placement:
+- For EF Core vs Dapper, repositories, DbContext use, SQL placement, EF performance rules, and predicate composition:
   - [references/data-access-guidance.md](references/data-access-guidance.md)
 
 - For Serilog, OpenTelemetry, health checks, Docker, and Kubernetes:
@@ -126,6 +131,12 @@ Load only what the task needs:
   - [examples/create-entity-slice.md](examples/create-entity-slice.md)
   - [examples/get-entity-slice.md](examples/get-entity-slice.md)
   - [examples/result-pattern.md](examples/result-pattern.md)
+
+- For Aspire integration, AppHost, ServiceDefaults, and production configuration:
+  - [examples/aspire-apphost.md](examples/aspire-apphost.md)
+
+- For solution structure, `.slnx`, folder layout, and Central Package Management:
+  - [examples/solution-structure.md](examples/solution-structure.md)
 
 - For bootstrap and ops wiring:
   - [examples/program-bootstrap.md](examples/program-bootstrap.md)

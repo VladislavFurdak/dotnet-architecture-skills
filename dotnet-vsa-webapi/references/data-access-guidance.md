@@ -105,6 +105,223 @@ Still avoid:
 - do not expose tracked entities as HTTP contracts
 - favor `AsNoTracking()` for read-only EF Core queries
 
+## EF Core performance rules
+
+Follow these rules for every EF Core query. Performance is not optional — it is a baseline expectation.
+
+### 1. Fix N+1 queries
+
+Use `.Include()` for known related data. Never load related entities in a loop.
+
+Good:
+```csharp
+var orders = await dbContext.Orders
+    .Include(o => o.Customer)
+    .ToListAsync(cancellationToken);
+```
+
+Bad:
+```csharp
+var orders = await dbContext.Orders.ToListAsync(cancellationToken);
+foreach (var order in orders)
+{
+    order.Customer = await dbContext.Customers.FindAsync(order.CustomerId); // N+1
+}
+```
+
+### 2. Project to DTOs — do not fetch full entities for reads
+
+```csharp
+var result = await dbContext.Orders
+    .Where(o => o.CustomerId == customerId)
+    .Select(o => new OrderSummaryResponse(o.Id, o.Number, o.Total, o.CreatedAt))
+    .ToListAsync(cancellationToken);
+```
+
+Projection eliminates change tracking overhead and fetches only needed columns.
+
+### 3. Use `AsNoTracking()` for read-only queries
+
+```csharp
+var product = await dbContext.Products
+    .AsNoTracking()
+    .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+```
+
+If the entity will not be modified, disable tracking. This saves memory and CPU.
+
+### 4. Use `AsSplitQuery()` for multiple includes
+
+When a query has multiple `.Include()` calls, EF Core generates a single SQL with JOINs that can cause a cartesian explosion. Split it:
+
+```csharp
+var order = await dbContext.Orders
+    .AsSplitQuery()
+    .Include(o => o.Items)
+    .Include(o => o.Payments)
+    .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+```
+
+Use split queries when including two or more collection navigations.
+
+### 5. Use batch operations for bulk updates/deletes (EF Core 7+)
+
+Do not load entities just to delete or update them:
+
+```csharp
+// Good: single SQL DELETE
+await dbContext.Products
+    .Where(p => p.IsDiscontinued)
+    .ExecuteDeleteAsync(cancellationToken);
+
+// Good: single SQL UPDATE
+await dbContext.Products
+    .Where(p => p.CategoryId == oldCategoryId)
+    .ExecuteUpdateAsync(s => s.SetProperty(p => p.CategoryId, newCategoryId), cancellationToken);
+```
+
+### 6. Paginate in the database
+
+```csharp
+var page = await dbContext.Orders
+    .OrderBy(o => o.CreatedAt)
+    .Skip((pageNumber - 1) * pageSize)
+    .Take(pageSize)
+    .ToListAsync(cancellationToken);
+```
+
+Never call `.ToList()` first and then paginate in memory.
+
+### 7. Use compiled queries for hot paths
+
+For queries executed very frequently with the same shape:
+
+```csharp
+private static readonly Func<AppDbContext, Guid, Task<Product?>> GetById =
+    EF.CompileAsyncQuery((AppDbContext ctx, Guid id) =>
+        ctx.Products.FirstOrDefault(p => p.Id == id));
+```
+
+### 8. Configure indexes in entity configuration
+
+```csharp
+modelBuilder.Entity<Order>(entity =>
+{
+    entity.HasIndex(o => o.CustomerId);
+    entity.HasIndex(o => new { o.Status, o.CreatedAt });
+});
+```
+
+Index columns used in `Where`, `OrderBy`, and `Join` predicates.
+
+### 9. Use `FindAsync` for single-entity lookup by primary key
+
+```csharp
+var product = await dbContext.Products.FindAsync([productId], cancellationToken);
+```
+
+`FindAsync` checks the local cache first, avoiding a round-trip if the entity is already tracked.
+
+### 10. Avoid lazy loading
+
+Do not configure lazy loading proxies. Use explicit `.Include()` or projection instead.
+
+## Predicate composition: do not embed external variable checks in Where clauses
+
+When building dynamic filters, **do not cram optional conditions into a single `.Where()` expression with external variable checks**. This produces unreadable LINQ, generates suboptimal SQL (the database evaluates conditions that are always false), and is hard to maintain.
+
+### Bad: monolithic predicate with external variable checks
+
+```csharp
+contactsQuery = contactsQuery.Where(c =>
+    (!string.IsNullOrWhiteSpace(alias) && c.Alias.Contains(alias!)) ||
+    (!string.IsNullOrWhiteSpace(name) && c.Name.Contains(name!)) ||
+    (hasChat.HasValue && hasChat.Value == (c.ChatId != null)) ||
+    (!string.IsNullOrWhiteSpace(lastMessageContains) &&
+        c.LastMessage != null && c.LastMessage.Contains(lastMessageContains!)));
+```
+
+Problems:
+- external variables (`alias`, `name`, etc.) leak into the expression tree
+- EF Core may not optimize away branches that are always false
+- generated SQL is bloated and hard to debug
+- adding a new filter requires editing a fragile compound expression
+
+### Good: compose the predicate incrementally
+
+For **AND** semantics (all conditions must match), chain `.Where()` calls:
+
+```csharp
+if (!string.IsNullOrWhiteSpace(alias))
+{
+    query = query.Where(c => c.Alias != null && c.Alias.Contains(alias));
+}
+
+if (!string.IsNullOrWhiteSpace(name))
+{
+    query = query.Where(c => c.Name != null && c.Name.Contains(name));
+}
+
+if (hasChat.HasValue)
+{
+    var hasChatValue = hasChat.Value;
+    query = query.Where(c => (c.ChatId != null) == hasChatValue);
+}
+
+if (!string.IsNullOrWhiteSpace(lastMessageContains))
+{
+    query = query.Where(c =>
+        c.LastMessage != null && c.LastMessage.Contains(lastMessageContains));
+}
+```
+
+Each `.Where()` adds a clean SQL `AND` clause. Unused filters produce no SQL at all.
+
+### Good: compose with Union for OR semantics
+
+When filters represent alternative match criteria (any condition should match), build separate queries and combine with `.Union()`:
+
+```csharp
+var source = contactsQuery;
+IQueryable<Contact>? result = null;
+
+if (!string.IsNullOrWhiteSpace(alias))
+{
+    var q = source.Where(c => c.Alias != null && c.Alias.Contains(alias));
+    result = result == null ? q : result.Union(q);
+}
+
+if (!string.IsNullOrWhiteSpace(name))
+{
+    var q = source.Where(c => c.Name != null && c.Name.Contains(name));
+    result = result == null ? q : result.Union(q);
+}
+
+if (hasChat.HasValue)
+{
+    var hasChatValue = hasChat.Value;
+    var q = source.Where(c => (c.ChatId != null) == hasChatValue);
+    result = result == null ? q : result.Union(q);
+}
+
+if (!string.IsNullOrWhiteSpace(lastMessageContains))
+{
+    var q = source.Where(c =>
+        c.LastMessage != null && c.LastMessage.Contains(lastMessageContains));
+    result = result == null ? q : result.Union(q);
+}
+
+contactsQuery = result ?? source;
+```
+
+### Rules for predicate composition
+
+- **Evaluate filter presence outside the expression tree** — check `string.IsNullOrWhiteSpace()`, `.HasValue`, etc. before building the `.Where()`
+- **Chain `.Where()` for AND** — each call narrows the result, produces clean SQL
+- **Use `.Union()` for OR** — each branch is a separate SQL query combined with `UNION`
+- **Capture variables before the lambda** — e.g., `var hasChatValue = hasChat.Value;` then use `hasChatValue` in the expression to avoid closure over nullable
+- **Never mix external control flow (`&&`, `||` on C# variables) with entity predicates in a single expression**
+
 ## Dapper rules
 
 ## Keep SQL local to the slice or module

@@ -8,12 +8,14 @@ A production-grade Claude Code skill for building, refactoring, and reviewing .N
 - feature-first decomposition
 - Clean Architecture boundaries inside slices
 - Minimal APIs
+- .NET Aspire (AppHost for local dev, ServiceDefaults for OpenTelemetry/health/resilience)
+- `.slnx` solution format with Central Package Management
 - FluentValidation
 - Result-based flow
 - strongly typed options
 - Serilog
-- pragmatic OpenTelemetry
-- EF Core and/or Dapper
+- OpenTelemetry via Aspire ServiceDefaults
+- EF Core and/or Dapper (via Aspire Npgsql components)
 - production-ready API and ops defaults
 
 ## Why this skill is manual-invocation only
@@ -95,13 +97,18 @@ For new work, the skill assumes:
 
 - .NET 10 / C# 14
 - ASP.NET Core Minimal API
+- `.slnx` solution file at repo root with `Directory.Build.props` and `Directory.Packages.props`
+- .NET Aspire AppHost for local development (PostgreSQL container auto-starts)
+- Aspire ServiceDefaults for OpenTelemetry, health checks, resilience, and service discovery
+- Aspire Npgsql components for EF Core and Dapper connection management
 - built-in OpenAPI generation + Scalar UI
 - FluentValidation invoked explicitly from Minimal API slices
 - Serilog for structured logging
-- OpenTelemetry when export pipelines are actually needed
 - EF Core for write-heavy aggregate work
 - Dapper for targeted read/query slices
 - ASP.NET Identity only when the application owns user accounts and credentials
+
+Production connection strings come from `appsettings.json` (`ConnectionStrings:shipments-db`) or environment variables (`ConnectionStrings__shipments-db`). No Aspire orchestration needed in production.
 
 If a repository is already on .NET 8 or .NET 9, keep the architecture rules and adapt the package/runtime details instead of forcing a framework upgrade.
 
@@ -131,10 +138,16 @@ If a repository is already on .NET 8 or .NET 9, keep the architecture rules and 
 - `references/source-synthesis.md`  
   Documents what was synthesized from the requested source bundle and how conflicts were resolved.
 
-- `examples/*`  
+- `examples/aspire-apphost.md`
+  Aspire AppHost, ServiceDefaults, and API integration for zero-config local development.
+
+- `examples/solution-structure.md`
+  `.slnx` solution format, folder layout, `Directory.Build.props`, and Central Package Management.
+
+- `examples/*`
   Concrete, realistic examples for slice creation, queries, bootstrap, result mapping, Docker, and probes.
 
-- `templates/slice-template.md`  
+- `templates/slice-template.md`
   A reusable scaffold template for generating a new slice in a live repository.
 
 ## Recommended usage pattern in a real repository
@@ -170,6 +183,7 @@ For generated SDKs:
 
 Good additions include:
 - a repo-specific `CLAUDE.md`
+- additional Aspire resources (Redis, RabbitMQ, Azure services)
 - organization-wide auth conventions
 - organization-wide telemetry exporters
 - database naming and migration rules
