@@ -42,7 +42,9 @@ repo-root/
 │   ├── Aspire/
 │   │   ├── AppHost/
 │   │   │   ├── AppHost.csproj
-│   │   │   └── Program.cs
+│   │   │   ├── Program.cs
+│   │   │   └── Properties/
+│   │   │       └── launchSettings.json
 │   │   └── ServiceDefaults/
 │   │       ├── ServiceDefaults.csproj
 │   │       └── Extensions.cs
@@ -131,17 +133,18 @@ Central Package Management keeps package versions consistent:
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Aspire -->
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="9.*" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="9.*" />
-    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.*" />
 
-    <!-- EF Core -->
+    <!-- EF Core + Npgsql (direct — not via Aspire component, see aspire-apphost.md) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.*" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.*" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.*" />
 
     <!-- Validation -->
     <PackageVersion Include="FluentValidation" Version="11.*" />
@@ -155,7 +158,9 @@ Central Package Management keeps package versions consistent:
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.*" />
     <PackageVersion Include="Scalar.AspNetCore" Version="2.*" />
 
-    <!-- OpenTelemetry -->
+    <!-- OpenTelemetry (via ServiceDefaults) -->
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="9.*" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="9.*" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.*" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.*" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.*" />

@@ -19,7 +19,8 @@ It includes:
 Typical packages for this baseline:
 
 ```text
-Aspire.Npgsql.EntityFrameworkCore.PostgreSQL
+Npgsql.EntityFrameworkCore.PostgreSQL
+Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore
 Microsoft.AspNetCore.OpenApi
 Scalar.AspNetCore
 FluentValidation
@@ -28,7 +29,7 @@ Serilog.AspNetCore
 Serilog.Sinks.Console
 ```
 
-The `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` component replaces manual EF Core + Npgsql wiring. It automatically adds health checks, OpenTelemetry tracing, retry resilience, and connection string resolution via `ConnectionStrings` configuration or Aspire orchestration.
+> **Note on `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL`**: As of Aspire 9.x, this component depends on `Npgsql.EntityFrameworkCore.PostgreSQL 9.x` which requires EF Core 9. On .NET 10 projects using EF Core 10, this creates a version conflict. Use `Npgsql.EntityFrameworkCore.PostgreSQL` directly with `UseNpgsql()` instead. When the Aspire Npgsql component is updated for EF Core 10, you can switch back to `builder.AddNpgsqlDbContext<>()`.
 
 OpenTelemetry packages are provided by the ServiceDefaults project and do not need to be referenced directly by the API project.
 
@@ -60,9 +61,10 @@ builder.Host.UseSerilog((context, services, logger) =>
 
 builder.Services.AddOpenApi();
 
-// Aspire Npgsql component: resolves ConnectionStrings:shipments-db from
-// Aspire orchestration (local dev) or appsettings.json / env vars (production)
-builder.AddNpgsqlDbContext<AppDbContext>("shipments-db");
+// EF Core + Npgsql: resolves connection string from ConnectionStrings config
+// Aspire AppHost injects ConnectionStrings:shipments-db automatically during local dev
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("shipments-db")));
 
 builder.Services.AddValidatorsFromAssemblyContaining<CreateShipmentRequestValidator>();
 
@@ -72,9 +74,8 @@ builder.Services.AddSingleton<IShipmentNumberGenerator, UtcShipmentNumberGenerat
 builder.Services.AddScoped<IDbConnectionFactory, NpgsqlConnectionFactory>();
 builder.Services.AddSingleton(TimeProvider.System);
 
-// Readiness health check — Aspire Npgsql component auto-registers a PostgreSQL health check,
-// but we tag it for the /health/ready endpoint. The liveness check comes from ServiceDefaults.
-// Use a unique name to avoid duplicate registration with the Aspire Npgsql component.
+// Readiness health check — verifies the database is reachable.
+// The liveness check comes from ServiceDefaults.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>("AppDbContext-ready", tags: ["ready"]);
 
@@ -136,7 +137,7 @@ public class UtcShipmentNumberGenerator : IShipmentNumberGenerator
 
 ## `Infrastructure/Persistence/NpgsqlConnectionFactory.cs`
 
-Uses `NpgsqlDataSource` injected by the Aspire component — shares the same connection pool, health checks, and tracing as EF Core.
+Uses `IConfiguration` to resolve the same connection string as EF Core. Both EF Core and Dapper share the same `ConnectionStrings:shipments-db` key, which Aspire AppHost injects automatically during local development.
 
 ```csharp
 using System.Data;
@@ -144,17 +145,17 @@ using Npgsql;
 
 namespace Shipments.Api.Infrastructure.Persistence;
 
-public class NpgsqlConnectionFactory(NpgsqlDataSource dataSource) : IDbConnectionFactory
+public class NpgsqlConnectionFactory(IConfiguration configuration) : IDbConnectionFactory
 {
     public async Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var connectionString = configuration.GetConnectionString("shipments-db");
+        var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
         return connection;
     }
 }
 ```
-
-> **Without Aspire**: if not using Aspire, inject `IOptions<PostgresOptions>` and create `new NpgsqlConnection(options.Value.ConnectionString)` manually.
 
 ## `Infrastructure/Persistence/AppDbContext.cs`
 
@@ -189,7 +190,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 ## Why this bootstrap is the default
 
 - **Aspire ServiceDefaults** provides OpenTelemetry, health checks, resilience, and service discovery out of the box.
-- **Aspire Npgsql component** handles connection string resolution, health checks, tracing, and retry — no manual wiring.
+- **EF Core + Npgsql direct** resolves connection strings from `ConnectionStrings` config — Aspire AppHost injects them automatically during local dev.
 - Built-in OpenAPI + Scalar is the current default path.
 - Validation is explicit and Minimal-API friendly.
 - Serilog is the baseline logger.

@@ -3,7 +3,7 @@ name: dotnet-vsa-webapi
 description: Design, scaffold, refactor, and review ASP.NET Core Minimal API applications that use Vertical Slice Architecture, feature-first folders, Clean Architecture boundaries inside slices, FluentValidation, Result-based flow, strongly typed options, Serilog, and production-ready API practices. Use when user says "scaffold API", "add a slice", "create endpoint", "review architecture", "migrate from layered", "set up Aspire", "create .slnx solution", "refactor to vertical slices", or "detect anti-patterns". Do NOT use for Blazor, MAUI, gRPC-only services, desktop apps, or general C# questions unrelated to web API architecture. Do not use MediatR or AutoMapper.
 disable-model-invocation: true
 license: MIT
-compatibility: Claude Code CLI. Requires .NET 10 SDK (adapts to .NET 8/9). Requires .NET Aspire workload for local development orchestration.
+compatibility: Claude Code CLI. Requires .NET 10 SDK (adapts to .NET 8/9). Requires Docker for Aspire local development orchestration.
 metadata:
   author: Vladyslav Furdak
   version: 1.0.0
@@ -24,7 +24,7 @@ Your default target is:
 - strongly typed options
 - Serilog
 - OpenTelemetry via Aspire ServiceDefaults
-- EF Core or Dapper per slice (via Aspire Npgsql components) — **always use a real database (PostgreSQL via Aspire)**
+- EF Core or Dapper per slice — **always use a real database (PostgreSQL via Aspire)**
 - Docker + Kubernetes-ready health probes
 - Central Package Management (`Directory.Packages.props`)
 
@@ -102,7 +102,7 @@ Use this skill when the user asks to:
 - **Feature first**: folders reflect business capabilities, not Controllers/Services/Repositories.
 - **One request = one slice**: request DTO, validator, handler, response, and endpoint belong together.
 - **Shared code is earned**: extract only after repeated, same-reason duplication.
-- **Aspire is mandatory for new projects**: always scaffold AppHost + ServiceDefaults + real PostgreSQL database. Never use `UseInMemoryDatabase`. Register DbContext via `builder.AddNpgsqlDbContext<AppDbContext>("resource-name")`.
+- **Aspire is mandatory for new projects**: always scaffold AppHost + ServiceDefaults + real PostgreSQL database. Never use `UseInMemoryDatabase`. Register DbContext via `builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(builder.Configuration.GetConnectionString("resource-name")))`. Aspire AppHost injects the connection string automatically during local dev.
 - **Identity is optional**: only add ASP.NET Identity if the app manages users/credentials itself.
 - **Typed results are preferred when the result set is small and clear**. Use `IResult` plus explicit `.Produces(...)` metadata when unions become noisy.
 - **Validation stays close to the slice**.
@@ -174,7 +174,7 @@ Actions:
 3. Create `.slnx`, `Directory.Build.props`, `Directory.Packages.props`
 4. Create AppHost project with PostgreSQL resource
 5. Create ServiceDefaults project
-6. Create API project with `builder.AddNpgsqlDbContext<AppDbContext>("resource-name")` — never `UseInMemoryDatabase`
+6. Create API project with `builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(...))` — never `UseInMemoryDatabase`
 7. Generate feature slices
 
 Result: Complete project with Aspire AppHost (real PostgreSQL), ServiceDefaults, feature slices, FluentValidation, Result pattern, and proper EF Core predicate composition.
@@ -217,8 +217,8 @@ Result: Feature reorganized into `Features/Orders/{CreateOrder,GetOrder,...}/` w
 ## Troubleshooting
 
 ### Aspire AppHost won't start
-**Cause:** .NET Aspire workload not installed or Docker not running.
-**Solution:** Run `dotnet workload install aspire` and ensure Docker Desktop is running. See `examples/aspire-apphost.md`.
+**Cause:** Docker not running, or AppHost project SDK misconfigured.
+**Solution:** Ensure Docker Desktop is running. The AppHost must use the dual SDK approach: `Sdk="Microsoft.NET.Sdk"` as the project SDK with `<Sdk Name="Aspire.AppHost.Sdk" Version="9.2.1" />` as an additional SDK element. The .NET Aspire workload is deprecated in .NET 10 — use NuGet SDK packages instead. Ensure `Properties/launchSettings.json` exists with Aspire Dashboard OTLP endpoints configured. Run with `--launch-profile https`. See `examples/aspire-apphost.md`.
 
 ### EF Core migration conflicts between slices
 **Cause:** Multiple slices modifying the same DbContext independently.
