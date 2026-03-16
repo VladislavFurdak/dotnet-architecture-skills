@@ -18,6 +18,8 @@ src/
     AppHost/
       AppHost.csproj
       Program.cs
+      Properties/
+        launchSettings.json
     ServiceDefaults/
       ServiceDefaults.csproj
       Extensions.cs
@@ -37,6 +39,8 @@ tests/
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.2.1" />
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -54,6 +58,56 @@ tests/
 
 </Project>
 ```
+
+Key points for the `.csproj`:
+- **Use `Microsoft.NET.Sdk` as the primary SDK** — not `Aspire.AppHost.Sdk` as the project SDK. The Aspire workload is deprecated in .NET 10.
+- **Add `Aspire.AppHost.Sdk` as an additional SDK** via `<Sdk Name="..." Version="..." />` element. This brings in Aspire build targets without replacing the standard .NET SDK targets (`Restore`, `Build`, `ComputeRunArguments`).
+- If you use `Sdk="Aspire.AppHost.Sdk/..."` as the project SDK, `dotnet run` will fail with `The target "ComputeRunArguments" does not exist` because the Aspire SDK alone does not include standard .NET SDK targets.
+
+### `Properties/launchSettings.json`
+
+The AppHost requires a `launchSettings.json` to configure the Aspire Dashboard endpoints. Without it, the AppHost will fail at startup with missing `ASPNETCORE_URLS` and `ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL` errors.
+
+```json
+{
+  "profiles": {
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:17178;http://localhost:15178",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "DOTNET_DASHBOARD_OTLP_ENDPOINT_URL": "https://localhost:21178",
+        "DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL": "https://localhost:21179",
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:22178",
+        "DOTNET_ASPIRE_SHOW_DASHBOARD_RESOURCES": "true"
+      }
+    },
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:15178",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "ASPIRE_ALLOW_UNSECURED_TRANSPORT": "true",
+        "DOTNET_DASHBOARD_OTLP_ENDPOINT_URL": "http://localhost:19178",
+        "DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL": "http://localhost:19179",
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "http://localhost:20178",
+        "DOTNET_ASPIRE_SHOW_DASHBOARD_RESOURCES": "true"
+      }
+    }
+  }
+}
+```
+
+Key points:
+- The `https` profile is the default — Aspire requires HTTPS unless `ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`
+- `DOTNET_DASHBOARD_OTLP_ENDPOINT_URL` and `DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL` configure the OTLP endpoints for the Aspire Dashboard to receive telemetry
+- Adjust port numbers to avoid conflicts with other services
 
 ### `Program.cs`
 
@@ -102,7 +156,6 @@ Key points:
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" />
-    <PackageReference Include="Npgsql.OpenTelemetry" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
@@ -167,8 +220,7 @@ public static class Extensions
             {
                 tracing
                     .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation()
-                    .AddNpgsql();
+                    .AddHttpClientInstrumentation();
             });
 
         builder.AddOpenTelemetryExporters();
@@ -221,14 +273,11 @@ public static class Extensions
 ### Additional packages for the API project
 
 ```text
-Aspire.Npgsql.EntityFrameworkCore.PostgreSQL
+Npgsql.EntityFrameworkCore.PostgreSQL
+Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore
 ```
 
-This single Aspire component replaces manual `UseNpgsql()` wiring and adds:
-- connection string resolution (from Aspire orchestration or `ConnectionStrings` config)
-- health checks for PostgreSQL
-- OpenTelemetry tracing for Npgsql
-- retry/resilience on transient failures
+> **Note on `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL`**: As of Aspire 9.x, this component depends on `Npgsql.EntityFrameworkCore.PostgreSQL 9.x` which requires EF Core 9. On .NET 10 projects using EF Core 10, this creates a version conflict. Use `Npgsql.EntityFrameworkCore.PostgreSQL` directly with `UseNpgsql()` instead. When the Aspire Npgsql component is updated for EF Core 10, you can switch back to `builder.AddNpgsqlDbContext<>()`.
 
 ### `Shipments.Api.csproj` references
 
@@ -238,7 +287,8 @@ This single Aspire component replaces manual `UseNpgsql()` wiring and adds:
 </ItemGroup>
 
 <ItemGroup>
-  <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
+  <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
 </ItemGroup>
 ```
 
@@ -248,23 +298,20 @@ This single Aspire component replaces manual `UseNpgsql()` wiring and adds:
 // ServiceDefaults: OpenTelemetry, health checks, resilience
 builder.AddServiceDefaults();
 
-// Aspire component: resolves connection string by resource name,
-// adds health check, tracing, and retry automatically
-builder.AddNpgsqlDbContext<AppDbContext>("shipments-db");
+// EF Core + Npgsql: resolves connection string from ConnectionStrings config
+// Aspire AppHost injects ConnectionStrings:shipments-db automatically during local dev
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("shipments-db")));
 ```
 
 The connection string is resolved in this order:
-1. **Aspire orchestration** — when running via AppHost, injected automatically
+1. **Aspire orchestration** — when running via AppHost, injected automatically into `ConnectionStrings:shipments-db`
 2. **`ConnectionStrings:shipments-db`** in `appsettings.json` — standard .NET config
 3. **`ConnectionStrings__shipments-db`** environment variable — production deployment
 
-### Dapper connection factory with Aspire
+### Dapper connection factory
 
-When slices use Dapper alongside EF Core, register a connection factory that uses the same Aspire-managed connection string:
-
-```csharp
-builder.AddNpgsqlDataSource("shipments-db");
-```
+When slices use Dapper alongside EF Core, register a connection factory that resolves the same connection string:
 
 ```csharp
 using System.Data;
@@ -272,17 +319,19 @@ using Npgsql;
 
 namespace Shipments.Api.Infrastructure.Persistence;
 
-public class NpgsqlConnectionFactory(NpgsqlDataSource dataSource) : IDbConnectionFactory
+public class NpgsqlConnectionFactory(IConfiguration configuration) : IDbConnectionFactory
 {
     public async Task<IDbConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
-        var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var connectionString = configuration.GetConnectionString("shipments-db");
+        var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
         return connection;
     }
 }
 ```
 
-This way both EF Core and Dapper share the same Aspire-managed data source with health checks, tracing, and resilience.
+This way both EF Core and Dapper use the same connection string, which Aspire AppHost injects automatically during local development.
 
 ## Production configuration
 
@@ -308,19 +357,21 @@ ConnectionStrings__shipments-db="Host=db.prod.internal;Port=5432;Database=shipme
 - **Use managed identity or IAM auth** when the database supports it (e.g., Azure Managed Identity, AWS IAM, GCP IAM) to eliminate password management.
 - **Use `appsettings.{Environment}.json`** layering: base `appsettings.json` has non-sensitive defaults, environment-specific files override per deployment.
 - **Prefer environment variables in containerized deployments** — Kubernetes Secrets, Docker secrets, or orchestrator-injected env vars.
-- **Connection pooling**: Aspire Npgsql components configure `NpgsqlDataSource` which manages pooling. Do not create `NpgsqlConnection` manually.
+- **Connection pooling**: Npgsql manages connection pooling internally via the connection string. Do not create multiple `NpgsqlDataSource` instances for the same database.
 - **SSL/TLS**: always require encrypted connections in production (`SSL Mode=Require` or `SSL Mode=VerifyFull`).
 
 ## Running locally
 
 ```bash
 # From the AppHost project — starts PostgreSQL container + API
-dotnet run --project src/Aspire/AppHost
+dotnet run --project src/Aspire/AppHost --launch-profile https
 
-# Aspire dashboard opens at https://localhost:15xxx
+# Aspire dashboard opens at https://localhost:17178 (login token in console output)
 # API available at https://localhost:7xxx (or http://localhost:5xxx)
 # PgAdmin available at http://localhost:5050 (via WithPgAdmin)
 ```
+
+The `--launch-profile https` flag is required — the AppHost needs the launch profile to configure Aspire Dashboard OTLP endpoints. Without it, the AppHost will fail with missing environment variable errors.
 
 New developers only need Docker running — no local PostgreSQL install, no connection string setup.
 
@@ -334,7 +385,7 @@ dotnet run --project src/Shipments.Api
 docker run -e ConnectionStrings__shipments-db="Host=..." shipments-api:latest
 ```
 
-The Aspire components (`Aspire.Npgsql.EntityFrameworkCore.PostgreSQL`) work fine without the AppHost. They fall back to standard `ConnectionStrings` configuration.
+The EF Core + Npgsql setup works identically with or without the AppHost. It uses standard `ConnectionStrings` configuration either way — Aspire just injects the value automatically during local development.
 
 ## Docker Compose deployment via `aspire publish`
 
