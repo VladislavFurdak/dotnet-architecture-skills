@@ -172,7 +172,8 @@ public class <UseCaseName>Handler(
             new CommandDefinition(Sql, new { /* parameters */ }, cancellationToken: cancellationToken));
 
         return response is null
-            ? Result.Failure<<ResponseName>>(Error.NotFound("<code>", "<message>"))
+            ? Result.Failure<<ResponseName>>(
+                <Entity>Errors.NotFound(request.Id))
             : Result.Success(response);
     }
 }
@@ -249,7 +250,35 @@ Rules:
 
 ---
 
-## 9. Domain integration
+## 9. Error codes and domain errors
+
+Each domain area defines:
+- `Domain/<Area>/<Entity>ErrorCodes.cs` — `const string` fields for error code keys
+- `Domain/<Area>/<Entity>Errors.cs` — factory methods that return `Error` instances using those constants
+
+```csharp
+// Domain/<FeatureName>/<Entity>ErrorCodes.cs
+public static class <Entity>ErrorCodes
+{
+    public const string NotFound = "<feature>.<entity>_not_found";
+    // add more as slices grow
+}
+
+// Domain/<FeatureName>/<Entity>Errors.cs
+public static class <Entity>Errors
+{
+    public static Error NotFound(Guid id) =>
+        Error.NotFound(
+            code: <Entity>ErrorCodes.NotFound,
+            message: $"<Entity> '{id}' was not found.");
+}
+```
+
+Never use inline string literals for error codes — always reference `*ErrorCodes` constants.
+
+---
+
+## 10. Domain integration
 
 If the slice needs domain behavior, keep it explicit.
 
@@ -263,7 +292,7 @@ Do not invent a domain layer for trivial CRUD without value.
 
 ---
 
-## 10. Registration checklist
+## 11. Registration checklist
 
 When wiring the slice into the app:
 
@@ -281,7 +310,7 @@ app.Map<UseCaseName>();
 
 ---
 
-## 11. Review checklist before finishing
+## 12. Review checklist before finishing
 
 - Is the slice placed under the correct feature?
 - Is one request implemented in one slice?
@@ -292,4 +321,5 @@ app.Map<UseCaseName>();
 - Are interfaces meaningful?
 - Is EF Core or Dapper justified?
 - Is shared code local unless truly earned?
+- Are error code strings defined as `const` in `*ErrorCodes` classes (no inline literals)?
 - Is auth added only if needed?

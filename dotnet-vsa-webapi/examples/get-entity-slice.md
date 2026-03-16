@@ -20,6 +20,10 @@ Features/
       Query.cs
       Handler.cs
       Response.cs
+Domain/
+  Shipments/
+    ShipmentErrorCodes.cs   ← shared across slices
+    ShipmentErrors.cs
 Infrastructure/
   Persistence/
     IDbConnectionFactory.cs
@@ -64,6 +68,7 @@ public record ShipmentDetailsResponse(
 
 ```csharp
 using Dapper;
+using Shipments.Api.Domain.Shipments;
 using Shipments.Api.Infrastructure.Persistence;
 using Shipments.Api.Shared.Results;
 
@@ -106,9 +111,7 @@ public class GetShipmentByIdHandler(
 
         return shipment is null
             ? Result.Failure<ShipmentDetailsResponse>(
-                Error.NotFound(
-                    code: "shipments.not_found",
-                    message: $"Shipment '{query.Id}' was not found."))
+                ShipmentErrors.NotFound(query.Id))
             : Result.Success(shipment);
     }
 }

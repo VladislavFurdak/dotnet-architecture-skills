@@ -55,6 +55,10 @@ repo-root/
 │       │   └── Shipments/
 │       │       ├── CreateShipment/
 │       │       └── GetShipmentById/
+│       ├── Shared/
+│       │   ├── ErrorCodes/
+│       │   ├── Results/
+│       │   └── Http/
 │       ├── Domain/
 │       │   └── Shipments/
 │       └── Infrastructure/

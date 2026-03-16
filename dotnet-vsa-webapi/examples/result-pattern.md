@@ -2,6 +2,21 @@
 
 This is a compact Result/Error implementation for Minimal API slices.
 
+## `Shared/ErrorCodes/CommonErrorCodes.cs`
+
+```csharp
+namespace Shipments.Api.Shared.ErrorCodes;
+
+public static class CommonErrorCodes
+{
+    public const string None = "common.none";
+    public const string ValidationFailed = "common.validation_failed";
+    public const string InternalError = "common.internal_error";
+}
+```
+
+> Each bounded context / domain area gets its own `{Area}ErrorCodes` class in `Domain/{Area}/`. See `create-entity-slice.md` for example.
+
 ## `Shared/Results/Error.cs`
 
 ```csharp
@@ -53,6 +68,8 @@ public record Error(
 ## `Shared/Results/Result.cs`
 
 ```csharp
+using Shipments.Api.Shared.ErrorCodes;
+
 namespace Shipments.Api.Shared.Results;
 
 public class Result
@@ -68,13 +85,13 @@ public class Result
     public Error Error { get; }
 
     public static Result Success() =>
-        new(true, Error.Failure("common.none", string.Empty));
+        new(true, Error.Failure(CommonErrorCodes.None, string.Empty));
 
     public static Result Failure(Error error) =>
         new(false, error);
 
     public static Result<T> Success<T>(T value) =>
-        new(value, true, Error.Failure("common.none", string.Empty));
+        new(value, true, Error.Failure(CommonErrorCodes.None, string.Empty));
 
     public static Result<T> Failure<T>(Error error) =>
         new(default, false, error);
@@ -167,3 +184,4 @@ public static class FluentValidationExtensions
 - Business-rule and not-found failures come back as `Result.Failure(...)`.
 - The endpoint decides the success HTTP status.
 - The shared mapper decides the failure HTTP status.
+- **Error code strings are always `const string` fields** — never inline string literals. Common codes go in `Shared/ErrorCodes/CommonErrorCodes.cs`. Domain-specific codes go in `Domain/{Area}/{Entity}ErrorCodes.cs` (e.g., `ShipmentErrorCodes`).

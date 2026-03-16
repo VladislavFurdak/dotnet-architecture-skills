@@ -109,6 +109,7 @@ Use this skill when the user asks to:
 - **ProblemDetails-compatible failures** are the default outward contract.
 - **EF Core predicate composition is mandatory**: never embed external variable checks (`string.IsNullOrWhiteSpace`, `.HasValue`) inside `.Where()` lambda expressions. Chain `.Where()` for AND, use `.Union()` for OR. See `references/data-access-guidance.md`.
 - **One `IEntityTypeConfiguration<T>` per entity** — never inline entity configuration in `OnModelCreating`. Each entity gets its own file in `Infrastructure/Persistence/Configurations/{EntityName}Configuration.cs`. Use `modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly)` in `OnModelCreating`.
+- **Error code strings are `const` fields, never inline literals** — common codes live in `Shared/ErrorCodes/CommonErrorCodes.cs`. Domain-specific codes live in `Domain/{Area}/{Entity}ErrorCodes.cs` (e.g., `ShipmentErrorCodes`). Error factory methods in `{Entity}Errors.cs` reference these constants. This makes error codes searchable, refactorable, and avoids typos.
 
 ## Load supporting files
 

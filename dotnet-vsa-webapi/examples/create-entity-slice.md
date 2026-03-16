@@ -26,6 +26,7 @@ Features/
 Domain/
   Shipments/
     Shipment.cs
+    ShipmentErrorCodes.cs
     ShipmentErrors.cs
 Infrastructure/
   Persistence/
@@ -71,6 +72,19 @@ public class Shipment
 }
 ```
 
+## `Domain/Shipments/ShipmentErrorCodes.cs`
+
+```csharp
+namespace Shipments.Api.Domain.Shipments;
+
+public static class ShipmentErrorCodes
+{
+    public const string NotFound = "shipments.not_found";
+    public const string OrderAlreadyHasShipment = "shipments.order_already_has_shipment";
+    public const string InvalidDestination = "shipments.invalid_destination";
+}
+```
+
 ## `Domain/Shipments/ShipmentErrors.cs`
 
 ```csharp
@@ -80,14 +94,19 @@ namespace Shipments.Api.Domain.Shipments;
 
 public static class ShipmentErrors
 {
+    public static Error NotFound(Guid shipmentId) =>
+        Error.NotFound(
+            code: ShipmentErrorCodes.NotFound,
+            message: $"Shipment '{shipmentId}' was not found.");
+
     public static Error OrderAlreadyHasShipment(string orderId) =>
         Error.Conflict(
-            code: "shipments.order_already_has_shipment",
+            code: ShipmentErrorCodes.OrderAlreadyHasShipment,
             message: $"Order '{orderId}' already has a shipment.");
 
     public static Error InvalidDestination(string countryCode) =>
         Error.BusinessRule(
-            code: "shipments.invalid_destination",
+            code: ShipmentErrorCodes.InvalidDestination,
             message: $"Destination country '{countryCode}' is not supported.");
 }
 ```
