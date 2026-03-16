@@ -114,7 +114,9 @@ Key points:
 ```csharp
 var builder = DistributedApplication.CreateBuilder(args);
 
-var postgres = builder.AddPostgres("postgres")
+var postgresPassword = builder.AddParameter("postgres-password", secret: true);
+
+var postgres = builder.AddPostgres("postgres", password: postgresPassword)
     .WithPgAdmin()
     .WithDataVolume(isReadOnly: false)
     .WithLifetime(ContainerLifetime.Persistent);
@@ -130,6 +132,8 @@ builder.Build().Run();
 ```
 
 Key points:
+- **`AddParameter("postgres-password", secret: true)` + `password: postgresPassword`** — stores the password in user secrets so it remains stable across AppHost restarts. Without this, Aspire generates a new random password on each restart, but `WithDataVolume` preserves the old password in the PostgreSQL data directory, causing `password authentication failed` errors.
+- After scaffolding, initialize the password: `dotnet user-secrets init` then `dotnet user-secrets set "Parameters:postgres-password" "YourDevPassword123!"`
 - `WithDataVolume(isReadOnly: false)` persists PostgreSQL data across container recreation — survives `docker rm`
 - `WithLifetime(ContainerLifetime.Persistent)` keeps the container alive across AppHost restarts — avoids re-seeding on every F5
 - `WithPgAdmin()` gives you a browser-based DB UI at no cost during development
@@ -292,6 +296,15 @@ Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore
 </ItemGroup>
 ```
 
+### Required `using` directives in `Program.cs`
+
+The ServiceDefaults extension methods (`AddServiceDefaults`, `MapDefaultEndpoints`) live in the `ServiceDefaults` namespace. The `UseNpgsql()` method requires `Microsoft.EntityFrameworkCore`. Without these using directives, you will get CS1061 errors.
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using ServiceDefaults;
+```
+
 ### Database registration in `Program.cs`
 
 ```csharp
@@ -373,7 +386,42 @@ dotnet run --project src/Aspire/AppHost --launch-profile https
 
 The `--launch-profile https` flag is required — the AppHost needs the launch profile to configure Aspire Dashboard OTLP endpoints. Without it, the AppHost will fail with missing environment variable errors.
 
-New developers only need Docker running — no local PostgreSQL install, no connection string setup.
+### First-time HTTPS setup
+
+Aspire Dashboard uses gRPC over HTTPS internally. If the dev certificate is missing or untrusted, the Dashboard will fail with `UntrustedRoot` errors. **Always run this after scaffolding a new solution or on a fresh machine:**
+
+```bash
+dotnet dev-certs https --clean
+dotnet dev-certs https --trust
+```
+
+This is a one-time machine-level setup — not per-project. Once trusted, all .NET projects on the machine will use the certificate.
+
+New developers only need Docker running and a trusted dev certificate — no local PostgreSQL install, no connection string setup.
+
+## Running from Rider / Visual Studio
+
+### Rider
+
+1. Install the **".NET Aspire" plugin** from Settings → Plugins → Marketplace. Without it, Rider cannot resolve Aspire AppHost projects and will show "Unable to get the project output" or empty Target Framework / Launch Profile dropdowns.
+2. Open the `.slnx` solution file.
+3. Select **AppHost** as the startup project.
+4. Choose launch profile **https** in the Run Configuration.
+5. Click **Run** or **Debug**.
+
+If Rider still shows errors after installing the plugin, try **File → Invalidate Caches → Invalidate and Restart**.
+
+### Visual Studio
+
+Visual Studio 2022 17.10+ supports Aspire natively. Set **AppHost** as the startup project and run with the **https** profile.
+
+### Fallback: terminal
+
+If the IDE has issues with the Aspire project, run from the terminal (works in any IDE's integrated terminal):
+
+```bash
+dotnet run --project src/Aspire/AppHost --launch-profile https
+```
 
 ## Running in production (without Aspire orchestration)
 

@@ -39,7 +39,9 @@ OpenTelemetry packages are provided by the ServiceDefaults project and do not ne
 
 ```csharp
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
+using ServiceDefaults;
 using Serilog;
 using Shipments.Api.Features.Shipments.CreateShipment;
 using Shipments.Api.Features.Shipments.GetShipmentById;

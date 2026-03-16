@@ -172,10 +172,11 @@ Actions:
 1. Load `examples/aspire-apphost.md`, `references/data-access-guidance.md`, `references/http-and-result-mapping.md` (mandatory)
 2. Load `examples/solution-structure.md`, `examples/program-bootstrap.md`, `templates/slice-template.md`
 3. Create `.slnx`, `Directory.Build.props`, `Directory.Packages.props`
-4. Create AppHost project with PostgreSQL resource
+4. Create AppHost project with PostgreSQL resource — **must include `Properties/launchSettings.json`** with Aspire Dashboard OTLP endpoints. Use `AddParameter("postgres-password", secret: true)` for stable password with `WithDataVolume`. Run `dotnet user-secrets init` and `dotnet user-secrets set "Parameters:postgres-password" "DevPassword123!"` in the AppHost project directory.
 5. Create ServiceDefaults project
-6. Create API project with `builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(...))` — never `UseInMemoryDatabase`
+6. Create API project with `builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(...))` — never `UseInMemoryDatabase`. **Must include `using ServiceDefaults;` and `using Microsoft.EntityFrameworkCore;`** in `Program.cs`
 7. Generate feature slices
+8. **Trust HTTPS dev certificate** — run `dotnet dev-certs https --clean && dotnet dev-certs https --trust` to prevent Aspire Dashboard `UntrustedRoot` errors
 
 Result: Complete project with Aspire AppHost (real PostgreSQL), ServiceDefaults, feature slices, FluentValidation, Result pattern, and proper EF Core predicate composition.
 
@@ -219,6 +220,26 @@ Result: Feature reorganized into `Features/Orders/{CreateOrder,GetOrder,...}/` w
 ### Aspire AppHost won't start
 **Cause:** Docker not running, or AppHost project SDK misconfigured.
 **Solution:** Ensure Docker Desktop is running. The AppHost must use the dual SDK approach: `Sdk="Microsoft.NET.Sdk"` as the project SDK with `<Sdk Name="Aspire.AppHost.Sdk" Version="9.2.1" />` as an additional SDK element. The .NET Aspire workload is deprecated in .NET 10 — use NuGet SDK packages instead. Ensure `Properties/launchSettings.json` exists with Aspire Dashboard OTLP endpoints configured. Run with `--launch-profile https`. See `examples/aspire-apphost.md`.
+
+### Rider shows "Unable to get project output" or empty Target Framework for AppHost
+**Cause:** Rider requires the ".NET Aspire" plugin to handle Aspire AppHost projects.
+**Solution:** Install the ".NET Aspire" plugin from Settings → Plugins → Marketplace. If already installed, try File → Invalidate Caches → Invalidate and Restart. As a fallback, run from the terminal: `dotnet run --project src/Aspire/AppHost --launch-profile https`.
+
+### PostgreSQL `Running (Unhealthy)` — password authentication failed
+**Cause:** `WithDataVolume` persists PostgreSQL data (including the password set on first run), but Aspire generates a new random password on each restart. The volume retains the old password, causing authentication failures.
+**Solution:** Use `AddParameter("postgres-password", secret: true)` and pass it to `AddPostgres("postgres", password: postgresPassword)`. Store the password via `dotnet user-secrets set "Parameters:postgres-password" "YourDevPassword123!"`. If the volume already has the wrong password, delete it: `docker volume rm <volume-name>` and restart. See `examples/aspire-apphost.md`.
+
+### Aspire Dashboard `UntrustedRoot` / SSL errors
+**Cause:** The .NET HTTPS development certificate is missing or not trusted.
+**Solution:** Run `dotnet dev-certs https --clean && dotnet dev-certs https --trust`. This is a one-time machine-level setup.
+
+### CS1061: `AddServiceDefaults` or `MapDefaultEndpoints` not found
+**Cause:** Missing `using ServiceDefaults;` in `Program.cs`. These extension methods are in the `ServiceDefaults` namespace provided by the ServiceDefaults project.
+**Solution:** Add `using ServiceDefaults;` to the top of `Program.cs`. Also ensure the API project has a `<ProjectReference>` to `ServiceDefaults.csproj`.
+
+### CS1061: `UseNpgsql` not found
+**Cause:** Missing `using Microsoft.EntityFrameworkCore;` in `Program.cs`.
+**Solution:** Add `using Microsoft.EntityFrameworkCore;` to the top of `Program.cs`. Ensure `Npgsql.EntityFrameworkCore.PostgreSQL` is referenced in the `.csproj`.
 
 ### EF Core migration conflicts between slices
 **Cause:** Multiple slices modifying the same DbContext independently.
