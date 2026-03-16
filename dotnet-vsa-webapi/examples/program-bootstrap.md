@@ -173,21 +173,40 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Shipment>(entity =>
-        {
-            entity.ToTable("shipments");
-            entity.HasKey(x => x.Id);
-
-            entity.Property(x => x.Number).HasMaxLength(64);
-            entity.Property(x => x.OrderId).HasMaxLength(64);
-            entity.Property(x => x.RecipientEmail).HasMaxLength(256);
-            entity.Property(x => x.DestinationCountryCode).HasMaxLength(2);
-
-            entity.HasIndex(x => x.OrderId).IsUnique();
-        });
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 }
 ```
+
+## `Infrastructure/Persistence/Configurations/ShipmentConfiguration.cs`
+
+Each entity gets its own configuration file implementing `IEntityTypeConfiguration<T>`. This keeps the DbContext clean and places configuration close to the domain entity it describes.
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Shipments.Api.Domain.Shipments;
+
+namespace Shipments.Api.Infrastructure.Persistence.Configurations;
+
+public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
+{
+    public void Configure(EntityTypeBuilder<Shipment> builder)
+    {
+        builder.ToTable("shipments");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Number).HasMaxLength(64);
+        builder.Property(x => x.OrderId).HasMaxLength(64);
+        builder.Property(x => x.RecipientEmail).HasMaxLength(256);
+        builder.Property(x => x.DestinationCountryCode).HasMaxLength(2);
+
+        builder.HasIndex(x => x.OrderId).IsUnique();
+    }
+}
+```
+
+Place configuration files in `Infrastructure/Persistence/Configurations/`. The naming convention is `{EntityName}Configuration.cs`.
 
 ## Why this bootstrap is the default
 

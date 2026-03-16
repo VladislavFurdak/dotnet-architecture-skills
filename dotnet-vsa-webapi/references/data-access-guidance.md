@@ -218,12 +218,23 @@ private static readonly Func<AppDbContext, Guid, Task<Product?>> GetById =
 
 ### 8. Configure indexes in entity configuration
 
+Use a separate `IEntityTypeConfiguration<T>` file per entity — do not inline configuration in `OnModelCreating`. Place files in `Infrastructure/Persistence/Configurations/`.
+
 ```csharp
-modelBuilder.Entity<Order>(entity =>
+public class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
-    entity.HasIndex(o => o.CustomerId);
-    entity.HasIndex(o => new { o.Status, o.CreatedAt });
-});
+    public void Configure(EntityTypeBuilder<Order> builder)
+    {
+        builder.HasIndex(o => o.CustomerId);
+        builder.HasIndex(o => new { o.Status, o.CreatedAt });
+    }
+}
+```
+
+In `AppDbContext.OnModelCreating`, use a single call to discover all configurations:
+
+```csharp
+modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 ```
 
 Index columns used in `Where`, `OrderBy`, and `Join` predicates.

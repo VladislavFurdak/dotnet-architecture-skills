@@ -59,6 +59,7 @@ repo-root/
 │       │   └── Shipments/
 │       └── Infrastructure/
 │           └── Persistence/
+│               └── Configurations/
 └── tests/
     └── Shipments.Api.Tests/
         └── Shipments.Api.Tests.csproj
