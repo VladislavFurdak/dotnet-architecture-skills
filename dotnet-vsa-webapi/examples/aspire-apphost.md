@@ -62,21 +62,25 @@ var builder = DistributedApplication.CreateBuilder(args);
 
 var postgres = builder.AddPostgres("postgres")
     .WithPgAdmin()
+    .WithDataVolume(isReadOnly: false)
     .WithLifetime(ContainerLifetime.Persistent);
 
 var shipmentsDb = postgres.AddDatabase("shipments-db");
 
 builder.AddProject<Projects.Shipments_Api>("shipments-api")
     .WithReference(shipmentsDb)
-    .WaitFor(shipmentsDb);
+    .WaitFor(shipmentsDb)
+    .WithExternalHttpEndpoints();
 
 builder.Build().Run();
 ```
 
 Key points:
-- `WithLifetime(ContainerLifetime.Persistent)` keeps the container alive across restarts — avoids re-seeding on every F5
+- `WithDataVolume(isReadOnly: false)` persists PostgreSQL data across container recreation — survives `docker rm`
+- `WithLifetime(ContainerLifetime.Persistent)` keeps the container alive across AppHost restarts — avoids re-seeding on every F5
 - `WithPgAdmin()` gives you a browser-based DB UI at no cost during development
 - `WaitFor(shipmentsDb)` ensures the API doesn't start until the database is accepting connections
+- `WithExternalHttpEndpoints()` marks the API as externally accessible — required for Docker Compose deployment via `aspire publish`
 - the resource name `"shipments-db"` becomes the connection string key automatically
 
 ## ServiceDefaults project
@@ -98,6 +102,7 @@ Key points:
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" />
+    <PackageReference Include="Npgsql.OpenTelemetry" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
@@ -162,7 +167,8 @@ public static class Extensions
             {
                 tracing
                     .AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation();
+                    .AddHttpClientInstrumentation()
+                    .AddNpgsql();
             });
 
         builder.AddOpenTelemetryExporters();
@@ -329,6 +335,43 @@ docker run -e ConnectionStrings__shipments-db="Host=..." shipments-api:latest
 ```
 
 The Aspire components (`Aspire.Npgsql.EntityFrameworkCore.PostgreSQL`) work fine without the AppHost. They fall back to standard `ConnectionStrings` configuration.
+
+## Docker Compose deployment via `aspire publish`
+
+Aspire can generate production-ready Docker Compose files from the AppHost definition.
+
+### Setup
+
+Add the Docker hosting package to AppHost:
+
+```xml
+<PackageReference Include="Aspire.Hosting.Docker" />
+```
+
+Ensure API projects use `WithExternalHttpEndpoints()` (already shown above).
+
+### Generate deployment artifacts
+
+```bash
+# From the AppHost project directory
+aspire publish -o ../../../deploy/docker-compose
+```
+
+This produces:
+- `docker-compose.yaml` — all services, databases, and networking
+- `.env` — connection strings and configuration
+
+### When to use `aspire publish`
+
+- Deploying to a Docker-only environment (no Kubernetes)
+- Quick staging/demo deployments
+- Teams that prefer Docker Compose over Helm/Kustomize for simplicity
+
+### When NOT to use `aspire publish`
+
+- Production Kubernetes deployments — use Helm charts or Kustomize instead
+- When the team already has a mature CI/CD pipeline with custom Docker Compose files
+- When you need fine-grained control over container networking or resource limits
 
 ## When NOT to use Aspire
 

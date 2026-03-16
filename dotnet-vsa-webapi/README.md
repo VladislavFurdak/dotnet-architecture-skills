@@ -1,5 +1,7 @@
 # dotnet-vsa-webapi
 
+> **Note:** This README is for human visitors on GitHub. When packaging this skill for upload to Claude.ai (Settings > Capabilities > Skills), exclude this file — the official skill guide requires that skill folders contain only `SKILL.md` and supporting directories (`references/`, `examples/`, `templates/`), not `README.md`.
+
 Skill by Vladyslav Furdak.
 
 A production-grade Claude Code skill for building, refactoring, and reviewing .NET web applications that use:

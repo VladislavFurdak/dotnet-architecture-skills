@@ -1,7 +1,14 @@
 ---
 name: dotnet-vsa-webapi
-description: Design, scaffold, refactor, and review ASP.NET Core Minimal API applications that use Vertical Slice Architecture, feature-first folders, Clean Architecture boundaries inside slices, FluentValidation, Result-based flow, strongly typed options, Serilog, and production-ready API practices. Use for new slice creation, repository architecture reviews, layered-to-slice migrations, and incremental refactors. Do not use MediatR or AutoMapper.
+description: Design, scaffold, refactor, and review ASP.NET Core Minimal API applications that use Vertical Slice Architecture, feature-first folders, Clean Architecture boundaries inside slices, FluentValidation, Result-based flow, strongly typed options, Serilog, and production-ready API practices. Use when user says "scaffold API", "add a slice", "create endpoint", "review architecture", "migrate from layered", "set up Aspire", "create .slnx solution", "refactor to vertical slices", or "detect anti-patterns". Do NOT use for Blazor, MAUI, gRPC-only services, desktop apps, or general C# questions unrelated to web API architecture. Do not use MediatR or AutoMapper.
 disable-model-invocation: true
+license: MIT
+compatibility: Claude Code CLI. Requires .NET 10 SDK (adapts to .NET 8/9). Optionally requires .NET Aspire workload for local development orchestration.
+metadata:
+  author: Vladyslav Furdak
+  version: 1.0.0
+  category: software-architecture
+  tags: [dotnet, vertical-slice-architecture, minimal-api, aspire, ef-core, dapper]
 ---
 
 You are an implementation-focused .NET architecture skill for Claude Code.
@@ -21,7 +28,7 @@ Your default target is:
 - Docker + Kubernetes-ready health probes
 - Central Package Management (`Directory.Packages.props`)
 
-## Core rule
+## CRITICAL: Core Rule
 
 **Each HTTP request is an independent vertical slice (Command or Query).**
 Inside a slice, preserve Clean Architecture ideas:
@@ -145,6 +152,60 @@ Load only what the task needs:
 
 - For generating a new slice from scratch:
   - [templates/slice-template.md](templates/slice-template.md)
+
+## Examples
+
+### Example 1: Scaffold a new slice
+
+User says: "Add a CreateOrder slice under the Orders feature"
+
+Actions:
+1. Load `templates/slice-template.md`
+2. Generate request DTO, validator, handler, endpoint
+3. Place files in `Features/Orders/CreateOrder/`
+
+Result: Complete slice with FluentValidation, handler with Result return, HTTP mapping, and endpoint registration.
+
+### Example 2: Architecture review
+
+User says: "Review this repo for anti-patterns"
+
+Actions:
+1. Load `references/antipatterns.md`
+2. Inspect current folder structure, dependency graph, and code patterns
+3. Identify smells and propose incremental fixes
+
+Result: Prioritized list of findings with concrete, incremental migration steps — no "rewrite everything" proposals.
+
+### Example 3: Layered-to-slice migration
+
+User says: "Refactor this layered Orders feature into vertical slices"
+
+Actions:
+1. Load `references/architecture-principles.md`
+2. Inspect existing Controllers, Services, Repositories for the feature
+3. Group by use case, create one slice per endpoint
+4. Move logic into slice handlers, remove empty abstractions
+
+Result: Feature reorganized into `Features/Orders/{CreateOrder,GetOrder,...}/` with thin endpoints and explicit dependencies.
+
+## Troubleshooting
+
+### Aspire AppHost won't start
+**Cause:** .NET Aspire workload not installed or Docker not running.
+**Solution:** Run `dotnet workload install aspire` and ensure Docker Desktop is running. See `examples/aspire-apphost.md`.
+
+### EF Core migration conflicts between slices
+**Cause:** Multiple slices modifying the same DbContext independently.
+**Solution:** Use a single shared DbContext per bounded context, not per slice. Slices share the DbContext but own their query/command logic. See `references/data-access-guidance.md`.
+
+### Slice handler grows too large
+**Cause:** Business logic, validation, and data access mixed in one handler.
+**Solution:** Extract domain services or value objects for complex logic. Keep the handler as orchestrator: validate -> call domain/service -> return Result. See `references/architecture-principles.md`.
+
+### FluentValidation not firing
+**Cause:** Validator registered in DI but not explicitly called from the endpoint.
+**Solution:** This skill uses explicit validation invocation in Minimal API endpoints, not middleware-based. Call `validator.ValidateAsync(request)` before the handler. See `references/http-and-result-mapping.md`.
 
 ## Output expectations
 

@@ -74,8 +74,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 // Readiness health check — Aspire Npgsql component auto-registers a PostgreSQL health check,
 // but we tag it for the /health/ready endpoint. The liveness check comes from ServiceDefaults.
+// Use a unique name to avoid duplicate registration with the Aspire Npgsql component.
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>(tags: ["ready"]);
+    .AddDbContextCheck<AppDbContext>("AppDbContext-ready", tags: ["ready"]);
 
 builder.Services.Configure<HostOptions>(options =>
 {
