@@ -6,8 +6,6 @@ This file records how the requested source bundle was synthesized into this skil
 
 ## 1. Vertical Slice Architecture is the primary organizing principle
 
-From the Anton Martyniuk articles, the strongest through-line is:
-
 - organize by feature, not technical layer
 - keep all code for a use case close together
 - combine that with Clean Architecture dependency direction where complexity justifies it
@@ -43,7 +41,6 @@ This skill resolves the choice decisively:
 ## 4. No AutoMapper
 
 The requested architecture philosophy rejects hidden mapping and unnecessary ceremony.
-Anton’s broader guidance is also strongly pragmatic.
 This skill therefore standardizes on:
 
 - explicit local mapping
@@ -99,7 +96,6 @@ This skill translates ACROSS into concrete rules for:
 
 ## A. FastEndpoints vs Minimal APIs
 
-One requested Anton article uses FastEndpoints.
 The user’s target stack explicitly requires ASP.NET Core Minimal API.
 
 Resolution:
