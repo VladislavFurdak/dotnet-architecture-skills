@@ -2,6 +2,20 @@
 
 This file defines how to choose and use EF Core and Dapper in a Vertical Slice architecture.
 
+## NEVER use InMemoryDatabase
+
+**`UseInMemoryDatabase` is explicitly banned for new projects.** It does not support transactions, referential integrity, migrations, or SQL features. It creates false confidence when tests pass against InMemory but fail against a real database.
+
+Always use a real PostgreSQL database via Aspire:
+```csharp
+// Correct — real database via Aspire
+builder.AddNpgsqlDbContext<AppDbContext>("resource-name");
+
+// BANNED — never do this
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseInMemoryDatabase("...")); // ← NEVER
+```
+
 ## Default position
 
 Both EF Core and Dapper are valid.
@@ -226,7 +240,7 @@ var product = await dbContext.Products.FindAsync([productId], cancellationToken)
 
 Do not configure lazy loading proxies. Use explicit `.Include()` or projection instead.
 
-## Predicate composition: do not embed external variable checks in Where clauses
+## MANDATORY: Predicate composition — do not embed external variable checks in Where clauses
 
 When building dynamic filters, **do not cram optional conditions into a single `.Where()` expression with external variable checks**. This produces unreadable LINQ, generates suboptimal SQL (the database evaluates conditions that are always false), and is hard to maintain.
 

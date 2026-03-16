@@ -10,7 +10,7 @@ It includes:
 - strongly typed options
 - EF Core
 - Serilog
-- optional OpenTelemetry
+- OpenTelemetry via Aspire ServiceDefaults
 - health checks
 - slice endpoint registration
 
@@ -32,7 +32,7 @@ The `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` component replaces manual EF 
 
 OpenTelemetry packages are provided by the ServiceDefaults project and do not need to be referenced directly by the API project.
 
-> **Without Aspire**: if the project does not use Aspire, replace with `Microsoft.EntityFrameworkCore`, `Npgsql.EntityFrameworkCore.PostgreSQL`, `Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore`, and the OpenTelemetry packages directly.
+> **IMPORTANT**: Always use Aspire for new projects. Never use `UseInMemoryDatabase()` — it does not support transactions, constraints, or SQL features, and hides real bugs. Use Aspire AppHost to auto-start a PostgreSQL container for local development.
 
 ## `Program.cs`
 

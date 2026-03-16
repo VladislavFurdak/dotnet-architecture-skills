@@ -3,7 +3,7 @@ name: dotnet-vsa-webapi
 description: Design, scaffold, refactor, and review ASP.NET Core Minimal API applications that use Vertical Slice Architecture, feature-first folders, Clean Architecture boundaries inside slices, FluentValidation, Result-based flow, strongly typed options, Serilog, and production-ready API practices. Use when user says "scaffold API", "add a slice", "create endpoint", "review architecture", "migrate from layered", "set up Aspire", "create .slnx solution", "refactor to vertical slices", or "detect anti-patterns". Do NOT use for Blazor, MAUI, gRPC-only services, desktop apps, or general C# questions unrelated to web API architecture. Do not use MediatR or AutoMapper.
 disable-model-invocation: true
 license: MIT
-compatibility: Claude Code CLI. Requires .NET 10 SDK (adapts to .NET 8/9). Optionally requires .NET Aspire workload for local development orchestration.
+compatibility: Claude Code CLI. Requires .NET 10 SDK (adapts to .NET 8/9). Requires .NET Aspire workload for local development orchestration.
 metadata:
   author: Vladyslav Furdak
   version: 1.0.0
@@ -16,7 +16,7 @@ You are an implementation-focused .NET architecture skill for Claude Code.
 Your default target is:
 - C# 14
 - ASP.NET Core Minimal API
-- .NET Aspire for local development orchestration (AppHost + ServiceDefaults)
+- **.NET Aspire is MANDATORY for all new projects** — AppHost for local orchestration (PostgreSQL container auto-starts), ServiceDefaults for OpenTelemetry/health/resilience
 - `.slnx` solution file at repo root with projects in folders
 - FluentValidation
 - built-in OpenAPI + Scalar
@@ -24,7 +24,7 @@ Your default target is:
 - strongly typed options
 - Serilog
 - OpenTelemetry via Aspire ServiceDefaults
-- EF Core or Dapper per slice (via Aspire Npgsql components)
+- EF Core or Dapper per slice (via Aspire Npgsql components) — **always use a real database (PostgreSQL via Aspire)**
 - Docker + Kubernetes-ready health probes
 - Central Package Management (`Directory.Packages.props`)
 
@@ -55,6 +55,7 @@ But **organize the codebase by feature, not by technical layers**.
 - god-services
 - speculative interfaces
 - hidden reflection-heavy magic unless it clearly pays off
+- **`UseInMemoryDatabase` — NEVER use EF Core InMemory provider for new projects.** Always use a real database (PostgreSQL via Aspire). InMemory does not support transactions, constraints, migrations, or SQL features — it hides real bugs and creates false confidence. Use Aspire AppHost to auto-start a PostgreSQL container for local development instead.
 
 ## Invocation modes
 
@@ -101,29 +102,40 @@ Use this skill when the user asks to:
 - **Feature first**: folders reflect business capabilities, not Controllers/Services/Repositories.
 - **One request = one slice**: request DTO, validator, handler, response, and endpoint belong together.
 - **Shared code is earned**: extract only after repeated, same-reason duplication.
+- **Aspire is mandatory for new projects**: always scaffold AppHost + ServiceDefaults + real PostgreSQL database. Never use `UseInMemoryDatabase`. Register DbContext via `builder.AddNpgsqlDbContext<AppDbContext>("resource-name")`.
 - **Identity is optional**: only add ASP.NET Identity if the app manages users/credentials itself.
 - **Typed results are preferred when the result set is small and clear**. Use `IResult` plus explicit `.Produces(...)` metadata when unions become noisy.
 - **Validation stays close to the slice**.
 - **ProblemDetails-compatible failures** are the default outward contract.
+- **EF Core predicate composition is mandatory**: never embed external variable checks (`string.IsNullOrWhiteSpace`, `.HasValue`) inside `.Where()` lambda expressions. Chain `.Where()` for AND, use `.Union()` for OR. See `references/data-access-guidance.md`.
 
-## Load supporting files selectively
+## Load supporting files
 
-Load only what the task needs:
+### ALWAYS load for ANY task (mandatory)
+
+These files contain rules that apply to every code generation and review task. Load them before writing any code:
+
+- Aspire integration — AppHost, ServiceDefaults, database setup, production config:
+  - [examples/aspire-apphost.md](examples/aspire-apphost.md)
+
+- EF Core vs Dapper, repositories, DbContext use, SQL placement, **EF performance rules, and predicate composition**:
+  - [references/data-access-guidance.md](references/data-access-guidance.md)
+
+- Endpoint behavior, validation, status codes, ProblemDetails, and Result mapping:
+  - [references/http-and-result-mapping.md](references/http-and-result-mapping.md)
+
+### Load selectively based on task
+
+Load only what the task additionally needs:
 
 - For overall structure, slice anatomy, boundaries, and migration:
   - [references/architecture-principles.md](references/architecture-principles.md)
 
-- For ACROSS + SOLID decision rules and review heuristics:
+- For ACROSS + SOLID decision rules and review heuristics (ACROSS is a custom architecture framework used by this skill — Abstractions, Composition, Rabbit-hole avoidance, Optimize for change, Simplicity, Screaming contract):
   - [references/across-and-solid.md](references/across-and-solid.md)
-
-- For endpoint behavior, validation, status codes, ProblemDetails, and Result mapping:
-  - [references/http-and-result-mapping.md](references/http-and-result-mapping.md)
 
 - For collection API design: filtering, sorting, field selection, and pagination approaches:
   - [references/api-design-patterns.md](references/api-design-patterns.md)
-
-- For EF Core vs Dapper, repositories, DbContext use, SQL placement, EF performance rules, and predicate composition:
-  - [references/data-access-guidance.md](references/data-access-guidance.md)
 
 - For Serilog, OpenTelemetry, health checks, Docker, and Kubernetes:
   - [references/observability-and-ops.md](references/observability-and-ops.md)
@@ -139,9 +151,6 @@ Load only what the task needs:
   - [examples/get-entity-slice.md](examples/get-entity-slice.md)
   - [examples/result-pattern.md](examples/result-pattern.md)
 
-- For Aspire integration, AppHost, ServiceDefaults, and production configuration:
-  - [examples/aspire-apphost.md](examples/aspire-apphost.md)
-
 - For solution structure, `.slnx`, folder layout, and Central Package Management:
   - [examples/solution-structure.md](examples/solution-structure.md)
 
@@ -155,18 +164,34 @@ Load only what the task needs:
 
 ## Examples
 
-### Example 1: Scaffold a new slice
+### Example 1: Scaffold a new API project
+
+User says: "Scaffold a new Chats API"
+
+Actions:
+1. Load `examples/aspire-apphost.md`, `references/data-access-guidance.md`, `references/http-and-result-mapping.md` (mandatory)
+2. Load `examples/solution-structure.md`, `examples/program-bootstrap.md`, `templates/slice-template.md`
+3. Create `.slnx`, `Directory.Build.props`, `Directory.Packages.props`
+4. Create AppHost project with PostgreSQL resource
+5. Create ServiceDefaults project
+6. Create API project with `builder.AddNpgsqlDbContext<AppDbContext>("resource-name")` — never `UseInMemoryDatabase`
+7. Generate feature slices
+
+Result: Complete project with Aspire AppHost (real PostgreSQL), ServiceDefaults, feature slices, FluentValidation, Result pattern, and proper EF Core predicate composition.
+
+### Example 2: Add a new slice
 
 User says: "Add a CreateOrder slice under the Orders feature"
 
 Actions:
 1. Load `templates/slice-template.md`
-2. Generate request DTO, validator, handler, endpoint
-3. Place files in `Features/Orders/CreateOrder/`
+2. Load `references/data-access-guidance.md` (mandatory — for EF Core performance rules and predicate composition)
+3. Generate request DTO, validator, handler, endpoint
+4. Place files in `Features/Orders/CreateOrder/`
 
 Result: Complete slice with FluentValidation, handler with Result return, HTTP mapping, and endpoint registration.
 
-### Example 2: Architecture review
+### Example 3: Architecture review
 
 User says: "Review this repo for anti-patterns"
 
@@ -177,7 +202,7 @@ Actions:
 
 Result: Prioritized list of findings with concrete, incremental migration steps — no "rewrite everything" proposals.
 
-### Example 3: Layered-to-slice migration
+### Example 4: Layered-to-slice migration
 
 User says: "Refactor this layered Orders feature into vertical slices"
 
