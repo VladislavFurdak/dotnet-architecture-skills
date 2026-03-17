@@ -93,9 +93,27 @@ Use this skill when the user asks to:
    - connection factories
    - repositories only when the abstraction is real
 7. Keep SQL local to the slice/module when using Dapper.
-8. For EF Core, prefer direct DbContext usage inside slices over generic repositories.
+8. For EF Core, prefer direct DbContext usage inside slices over generic repositories — unless a DDD / domain-modeling skill is active, in which case handlers use repository ports defined by that skill.
 9. Use exceptions only for unexpected failures.
 10. When refactoring, preserve behavior first, then improve boundaries.
+
+## Coexistence with domain-modeling skills
+
+When a DDD or domain-modeling skill is active alongside this skill, responsibilities split as follows:
+
+| Concern | Owner |
+|---------|-------|
+| Domain model, aggregates, value objects | DDD skill |
+| Repository port interfaces (in Application/Domain layer) | DDD skill |
+| API endpoints, HTTP mapping, validation | This skill (VSA) |
+| Infrastructure wiring (DI, EF configurations, repository implementations) | This skill (VSA) |
+| Result pattern, error mapping to HTTP | This skill (VSA) |
+
+Key rules when coexisting:
+- **Handlers depend on repository interfaces** defined by the domain layer — not on `DbContext` directly.
+- **Direct `DbContext` usage** is still valid for slices that have no domain layer (simple CRUD projections, read-only queries, reporting).
+- **Do not force VSA data-access patterns** (direct `DbContext` in handlers) onto slices that belong to a domain aggregate managed by the DDD skill.
+- **EF Core configurations** (`IEntityTypeConfiguration<T>`) remain in `Infrastructure.Persistence` and are wired by this skill's conventions.
 
 ## Decision rules
 

@@ -347,6 +347,37 @@ contactsQuery = result ?? source;
 - **Capture variables before the lambda** — e.g., `var hasChatValue = hasChat.Value;` then use `hasChatValue` in the expression to avoid closure over nullable
 - **Never mix external control flow (`&&`, `||` on C# variables) with entity predicates in a single expression**
 
+### Unconditional predicates: combine in a single `.Where()`
+
+`.Where()` chaining is for **conditional** filters — predicates added only when a parameter has a value. When all predicates are unconditional (always applied), combine them with `&&` in a single `.Where()` call.
+
+Bad — unnecessary chaining of unconditional predicates:
+```csharp
+var slots = await dbContext.Slots
+    .Where(s => s.DoctorId == doctorId)
+    .Where(s => !s.IsBlocked)
+    .Where(s => !s.IsBooked)
+    .ToListAsync(ct);
+```
+
+Good — unconditional predicates combined:
+```csharp
+var slots = await dbContext.Slots
+    .Where(s => s.DoctorId == doctorId && !s.IsBlocked && !s.IsBooked)
+    .ToListAsync(ct);
+```
+
+Good — conditional chaining (each `.Where()` is guarded):
+```csharp
+var query = dbContext.Orders.AsQueryable();
+
+if (status.HasValue)
+    query = query.Where(o => o.Status == status.Value);
+
+if (!string.IsNullOrWhiteSpace(search))
+    query = query.Where(o => o.Name.Contains(search));
+```
+
 ## Dapper rules
 
 ## Keep SQL local to the slice or module

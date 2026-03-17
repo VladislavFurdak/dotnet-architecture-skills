@@ -81,7 +81,8 @@ public class Result
     }
 
     public bool IsSuccess { get; }
-    public bool IsFailure => !IsSuccess;
+    // Intentionally no IsFailure — pure negation of IsSuccess adds no information.
+    // Use !result.IsSuccess or pattern-match with result.Match() instead.
     public Error Error { get; }
 
     public static Result Success() =>

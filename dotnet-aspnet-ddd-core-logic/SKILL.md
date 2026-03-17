@@ -98,6 +98,8 @@ Use this rule:
 
 Do not turn `Application` into the place where all business rules live. `Application` orchestrates; it does not replace the domain.
 
+**Data access rule:** Use cases and handlers MUST access aggregate state exclusively through repository ports defined in `Application` (e.g., `IOrderRepository`). A handler must never depend on `DbContext`, `DbSet<T>`, or any ORM-specific type directly. The repository abstraction is not optional when using DDD — it is the boundary that keeps the Application layer independent of persistence technology.
+
 ## 4) Collect domain events and integration events correctly
 
 Separate events like this:
@@ -161,6 +163,7 @@ Always follow these constraints:
 - do not move invariants out of aggregates into controllers or handlers
 - do not replace the domain model with CRUD tables that have no behavior
 - do not mix read-model optimizations into the domain model unless there is a clear need
+- do not inject `DbContext` or any ORM type into use cases / handlers; use repository ports instead
 
 # Tactical DDD: What to Support
 
@@ -306,6 +309,8 @@ Choose this style when:
 - the aggregate has complex state transitions (state machines)
 - the team prefers `Result<T>` return types over exceptions for business rule violations
 - aggregate methods modify internal state rather than returning new instances
+
+> **Important:** Even when the class-based approach maps domain entities directly via EF Core (using `OwnsOne`, private constructors, and change tracking), the use case / handler layer MUST still access data exclusively through repository ports defined in `Application`. The fact that EF Core can track domain entities does not mean handlers should depend on `DbContext`. The repository implementation in `Infrastructure.Persistence` uses `DbContext` internally; the handler never sees it.
 
 Choose immutable records when:
 

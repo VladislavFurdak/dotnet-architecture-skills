@@ -152,6 +152,8 @@ public class CreateAccountCommandHandler
 }
 ```
 
+> **Note:** The handler depends on `IAccountRepository`, not on `AccountDbContext`. Even though EF Core tracks the `Account` entity directly (class-based approach), the handler is decoupled from persistence infrastructure.
+
 ## Infrastructure: EF Core mapping
 
 ```csharp
@@ -170,6 +172,8 @@ modelBuilder.Entity<Account>(entity =>
     entity.Ignore(a => a.DomainEvents);
 });
 ```
+
+> **Note:** This `OwnsOne` mapping lives in `Infrastructure.Persistence`. The use case layer accesses `Account` exclusively through `IAccountRepository` — it never sees `DbContext`, `DbSet`, or any EF Core type.
 
 ## Unit test example
 

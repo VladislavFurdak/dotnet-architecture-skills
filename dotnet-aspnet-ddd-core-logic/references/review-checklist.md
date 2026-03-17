@@ -44,6 +44,8 @@ Use this checklist for self-review before returning the result.
 - [ ] `DomainEvents` property is ignored in EF mapping
 - [ ] EF interceptor publishes domain events; outbox handles integration events
 - [ ] Factory methods raise initial domain event (e.g., `AccountCreated`)
+- [ ] Use case / handler depends on repository interface, NOT on DbContext
+- [ ] No DbContext, DbSet, or EF Core type appears in Application layer code
 
 ## Anti-patterns
 
