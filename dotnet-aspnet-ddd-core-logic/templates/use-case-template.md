@@ -16,9 +16,9 @@ Describe the business goal of the use case in one paragraph.
 
 ## 3. Invariants
 
-- 
-- 
-- 
+- (state-based rule, e.g., "Order can only be placed from Draft status")
+- (data constraint, e.g., "Balance cannot go below zero")
+- (cross-field rule, e.g., "Currency must match between amount and account")
 
 ## 4. Aggregate Design
 
@@ -95,22 +95,77 @@ Modeling approach: [ ] Immutable records  [ ] Class-based rich model
 ```text
 src/
   <Context>.Domain/
+    <AggregateRoot>/
+      <AggregateRoot>.cs
+      <ValueObject>.cs
+      <DomainEvent>.cs
+      <DomainService>.cs          (if needed)
+    Common/
+      Entity.cs                   (if class-based)
+      AggregateRoot.cs            (if class-based)
+      IDomainEvent.cs
+      Guard.cs                    (if class-based)
+      Result.cs                   (if class-based)
+      DomainException.cs
+
   <Context>.Application/
+    Abstractions/
+      Persistence/
+        I<AggregateRoot>Repository.cs
+        IApplicationTransaction.cs
+        IOutboxWriter.cs
+      Services/
+        ISystemClock.cs
+        IIntegrationEventSerializer.cs
+    IntegrationEvents/
+      IIntegrationEvent.cs
+      <Name>IntegrationEvent.cs
+    Outbox/
+      OutboxMessage.cs
+    UseCases/
+      <UseCaseName>/
+        <UseCaseName>Command.cs
+        <UseCaseName>UseCase.cs
+
   <Context>.Infrastructure.Persistence/
+    <AggregateRoot>/
+      Ef<AggregateRoot>Repository.cs
+    Outbox/
+      EfOutboxWriter.cs
+    Transactions/
+      EfApplicationTransaction.cs
+    Configuration/
+      <AggregateRoot>Configuration.cs  (EF Core entity config)
+    Interceptors/
+      DomainEventPublishingInterceptor.cs  (if class-based)
+
   <Context>.Infrastructure.Messaging/
+    Dispatching/
+      OutboxDispatcherBackgroundService.cs
+    Publishing/
+      BrokerIntegrationEventPublisher.cs
+
   <Context>.API/
+    Endpoints/
+      <AggregateRoot>Endpoints.cs
 ```
 
 ## 12. Tests
 
 ### Unit tests
 
-- aggregate invariants
+- aggregate invariants (status transitions, data constraints)
 - domain service rules
-- event emission
+- event emission (correct events raised after operations)
+- If class-based:
+  - Result pattern: success and failure paths for each business operation
+  - Guard clauses: precondition violations throw on invalid arguments
+  - Factory methods: correct initial state and initial domain event
+  - Value object validation: constructor rejects invalid input
 
 ### Integration tests
 
-- repository persistence
+- repository persistence (save and load round-trip preserves aggregate state)
 - transaction writes domain state + outbox atomically
 - outbox dispatcher publishes and marks processed
+- If class-based with interceptor: domain events published on SaveChanges

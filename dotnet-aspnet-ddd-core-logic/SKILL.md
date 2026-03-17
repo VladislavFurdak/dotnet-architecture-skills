@@ -2,7 +2,7 @@
 name: aspnet-ddd-core-logic
 description: Designs and implements core business logic for ASP.NET web apps using Tactical and Strategic DDD. Use when user asks to "design an aggregate", "implement a use case", "model a bounded context", "create domain entities", "add domain events", "implement repository pattern", or build features with rich domain models, value objects, and Transactional Outbox. Does not use CQRS or Event Sourcing by default.
 metadata:
-  author: ntstr
+  author: Vladyslav Furdak
   version: 2.0.0
   argument-hint: feature description, use case, or bounded context
 ---
